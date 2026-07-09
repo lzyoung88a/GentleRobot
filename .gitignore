@@ -1,0 +1,17 @@
+# Keep this repository focused on the runnable prototype.
+*
+
+!.gitignore
+!.gitattributes
+!README.md
+!低代码平台_PRD.md
+!低代码平台示例.png
+!研究原型界面图/
+!研究原型界面图/**
+!three-demo/
+!three-demo/**
+
+**/.DS_Store
+**/node_modules/
+**/dist/
+**/.npm-cache/
