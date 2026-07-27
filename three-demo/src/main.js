@@ -8,85 +8,177 @@ const TOTAL_DURATION = 24;
 const timelineTracks = [
   { name: 'Head', icon: '☻' },
   { name: 'Arm / Hand', icon: '✋' },
-  { name: 'Chest', icon: '☼' },
-  { name: 'Belly', icon: '◍' },
-  { name: 'Body / Wheels', icon: '♟' },
+  { name: 'Chest + Belly', icon: '◒' },
 ];
 
 const behaviorModuleGroups = [
   {
     group: 'Head',
     icon: '☻',
-    items: ['Nod gently', 'Look down', 'Look up'],
+    items: ['Head up', 'Head down', 'Head left', 'Head right', 'Soft head inflate'],
   },
   {
     group: 'Arm / Hand',
     icon: '✋',
     items: [
-      'Raise hand',
-      'Lower hand',
-      'Reach forward',
-      'Retract hand',
-      'Move hand back',
-      'Gentle pat',
-      'Hand vibration',
-      'Warm hand',
-      'Hand glow',
-      'Hold still',
+      'Forward / Backward Reach',
+      'Side Lift',
+      'Arm Inflate',
     ],
   },
   {
-    group: 'Chest',
-    icon: '☼',
-    items: ['Breathing light', 'Heartbeat light', 'Color change', 'Soft glow'],
-  },
-  {
-    group: 'Belly',
-    icon: '◍',
-    items: ['Breathing rise', 'Local warmth', 'Gentle vibration', 'Soft rebound'],
-  },
-  {
-    group: 'Body / Wheels',
-    icon: '♟',
-    items: ['Move closer', 'Move away', 'Stay nearby', 'Stop'],
+    group: 'Chest + Belly',
+    icon: '◒',
+    items: ['Breathing'],
   },
 ];
 
 const baseClips = [];
+const visibleModuleNames = new Set(behaviorModuleGroups.flatMap((group) => group.items));
 
 const rhythmOptions = ['Slow', 'Pulse', 'Breathing', 'Heartbeat', 'Custom'];
-const removedModules = new Set(['Turn to user', 'Turn toward user', 'Soft hand touch', 'Soft grip']);
+const removedModules = new Set([
+  'Turn to user',
+  'Turn toward user',
+  'Soft hand touch',
+  'Soft grip',
+  'Breathing light',
+  'Heartbeat light',
+  'Color change',
+  'Soft glow',
+  'Breathing rise',
+  'Local warmth',
+  'Gentle vibration',
+  'Soft rebound',
+  'Move closer',
+  'Move away',
+  'Stay nearby',
+  'Stop',
+]);
 const responseSpeedOptions = ['Slow', 'Medium', 'Fast'];
+const DEFAULT_NEW_CLIP_DURATION = 4;
+const actionSpeedDurations = {
+  Slow: 4,
+  Medium: 2.5,
+  Fast: 1.5,
+};
+const actionSideOptions = ['Right', 'Left', 'Both'];
+const reachDirectionOptions = ['Forward', 'Backward'];
 const responseRhythmOptions = ['Single', 'Pulse', 'Breathing', 'Wave'];
 const surfaceStateOptions = ['Smooth', 'Soft bumps', 'Firm', 'Textured'];
 const spatialPatternOptions = ['Single area', 'Line', 'Surface', 'Multi-zone'];
 const materialKeys = ['default', 'silicone', 'fur', 'cotton', 'silk', 'foam'];
 const speedOptions = [0.5, 1, 1.5, 2];
 const cameraViews = {
-  front: { label: 'Front' },
-  left: { label: 'Left Side' },
-  right: { label: 'Right Side' },
-  top: { label: 'Slight Top' },
-  free: { label: 'Free Orbit' },
+  front: { label: '正面' },
+  left: { label: '左侧' },
+  right: { label: '右侧' },
+  top: { label: '俯视' },
+  free: { label: '自由视角' },
 };
 
 const sceneBackdrops = {
-  studio: { label: 'Studio', image: '' },
-  living: { label: 'Living', image: '/scenes/living.png' },
-  bedside: { label: 'Bedside', image: '/scenes/bedside.png' },
-  dining: { label: 'Kitchen', image: '/scenes/dining.png' },
-  entry: { label: 'Entry', image: '/scenes/entry.png' },
-  window: { label: 'Window', image: '/scenes/window.png' },
+  studio: { label: '工作室', image: '' },
+  living: { label: '客厅', image: '/scenes/living.png' },
+  bedside: { label: '床边', image: '/scenes/bedside.png' },
+  dining: { label: '厨房', image: '/scenes/dining.png' },
+  entry: { label: '玄关', image: '/scenes/entry.png' },
+  window: { label: '窗边', image: '/scenes/window.png' },
 };
 
 const materialLabels = {
-  default: 'Default',
-  silicone: 'Silicone',
-  fur: 'Faux fur',
-  cotton: 'Cotton',
-  silk: 'Silk',
-  foam: 'Foam',
+  default: '默认',
+  silicone: '硅胶',
+  fur: '仿毛',
+  cotton: '棉布',
+  silk: '丝绸',
+  foam: '泡棉',
 };
+
+const groupLabels = {
+  Head: '头部',
+  'Arm / Hand': '手臂/手',
+  'Chest + Belly': '胸腹',
+  Chest: '胸部',
+  Belly: '腹部',
+  'Body / Wheels': '身体/轮子',
+};
+
+const moduleLabels = {
+  'Head up': '上看',
+  'Head down': '下看',
+  'Head left': '左转',
+  'Head right': '右转',
+  'Soft head inflate': '头部膨胀',
+  'Forward / Backward Reach': '侧向抬手',
+  'Side Lift': '前后伸手',
+  'Arm Inflate': '手臂膨胀',
+  Breathing: '胸腹呼吸',
+  'Nod gently': '轻点头',
+  'Look down': '低头',
+  'Look up': '抬头',
+  'Hand forward': '向前伸手',
+  'Hand back': '收回手',
+  'Hand up': '抬手',
+  'Hand down': '放下手',
+  'Open arms': '张开双臂',
+  'Close arms': '合拢双臂',
+  'Gentle pat': '轻拍',
+  'Hand vibration': '手部轻震',
+  'Warm hand': '手部升温',
+  'Hand glow': '手部发光',
+  'Hold still': '停留',
+};
+
+const optionLabels = {
+  Center: '居中',
+  Right: '右侧',
+  Left: '左侧',
+  Both: '双侧',
+  Forward: '向前',
+  Backward: '向后',
+  Slow: '慢',
+  Medium: '中',
+  Fast: '快',
+  Single: '单次',
+  Pulse: '脉冲',
+  Breathing: '呼吸',
+  Wave: '波浪',
+  Custom: '自定义',
+  None: '无',
+  'Single area': '单一区域',
+  Row: '成排',
+  Array: '点阵',
+  Horizontal: '横向',
+  Vertical: '纵向',
+  Curve: '弧线',
+  'Small area': '小区域',
+  'Whole part': '整体',
+  'Breathing area': '呼吸区',
+  Line: '线',
+  Surface: '面',
+  'Multi-zone': '多区域',
+  Smooth: '平滑',
+  'Soft bumps': '柔和凸点',
+  Firm: '变硬',
+  Textured: '纹理化',
+  distance: '点距',
+  radius: '半径',
+  sync: '同步',
+  edges: '隔点',
+};
+
+function displayGroupName(name) {
+  return groupLabels[name] ?? name;
+}
+
+function displayModuleName(name) {
+  return moduleLabels[name] ?? name;
+}
+
+function displayOption(value) {
+  return optionLabels[value] ?? value;
+}
 
 const materialSwatches = {
   default: '#f3f6fb',
@@ -97,38 +189,95 @@ const materialSwatches = {
   foam: '#e6f4df',
 };
 
+const moduleActionIcons = {
+  'Forward / Backward Reach': '↗',
+  'Side Lift': '↔',
+  'Arm Inflate': '◒',
+  Breathing: '◒',
+  'Head up': '↑',
+  'Head down': '↓',
+  'Head left': '←',
+  'Head right': '→',
+  'Hand forward': '↗',
+  'Hand back': '↙',
+  'Hand up': '↑',
+  'Hand down': '↓',
+  'Open arms': '⟷',
+  'Close arms': '⟵',
+  'Breathing light': '◌',
+  'Heartbeat light': '♥',
+  'Color change': '◐',
+  'Soft glow': '✦',
+  'Breathing rise': '◒',
+  'Local warmth': '☼',
+  'Gentle vibration': '≈',
+  'Soft rebound': '◌',
+  'Move closer': '↥',
+  'Move away': '↧',
+  'Stay nearby': '•',
+  Stop: '■',
+};
+
 const deformationTypes = {
   none: {
-    label: 'No deformation',
+    label: '无形变',
     icon: '○',
-    description: 'No material shape change',
+    description: '不产生材料形变',
   },
   inflate: {
-    label: 'Inflate / Deflate',
+    label: '膨胀/回弹',
     icon: '◒',
-    description: 'Bulge outward, then return',
+    description: '向外鼓起后回到原状',
   },
   rebound: {
-    label: 'Press / Rebound',
+    label: '按压/回弹',
     icon: '◌',
-    description: 'Press inward, then softly recover',
+    description: '向内受压后柔和恢复',
   },
   surface: {
-    label: 'Surface Shift',
+    label: '表面变化',
     icon: '≈',
-    description: 'Change softness, texture, or surface state',
+    description: '改变软硬、纹理或表面状态',
   },
   wave: {
-    label: 'Wave / Spread',
+    label: '波纹/扩散',
     icon: '≋',
-    description: 'Let changes travel across areas',
+    description: '让变化沿区域传播',
   },
 };
 
+const deformationPatterns = [
+  { key: 'none', label: '无', icon: '○', description: '不添加表面形变。' },
+  { key: 'point', label: '点', icon: '•', description: '局部浅凸点标记。' },
+  { key: 'line', label: '线', icon: '━', description: '沿表面形成条带变化。' },
+  { key: 'surface', label: '面', icon: '◒', description: '较大区域一起变化。' },
+];
+
+const deformationTargets = [
+  { key: 'head_shell', label: '头部外壳', icon: '☻' },
+  { key: 'arm_hand', label: '手臂/手', icon: '✋' },
+  { key: 'chest_belly', label: '胸腹部', icon: '◒' },
+];
+
 const moduleResponseMap = {
-  'Nod gently': { targetPart: 'head', targetLabel: 'Head', side: 'Center', deformationType: 'none', category: 'Head motion' },
-  'Look down': { targetPart: 'head', targetLabel: 'Head', side: 'Center', deformationType: 'none', category: 'Head motion' },
-  'Look up': { targetPart: 'head', targetLabel: 'Head', side: 'Center', deformationType: 'none', category: 'Head motion' },
+  'Head up': { targetPart: 'head', targetLabel: 'Head', side: 'Center', deformationType: 'none', deformationTarget: 'head_shell', category: 'Head motion' },
+  'Head down': { targetPart: 'head', targetLabel: 'Head', side: 'Center', deformationType: 'none', deformationTarget: 'head_shell', category: 'Head motion' },
+  'Head left': { targetPart: 'head', targetLabel: 'Head', side: 'Center', deformationType: 'none', deformationTarget: 'head_shell', category: 'Head motion' },
+  'Head right': { targetPart: 'head', targetLabel: 'Head', side: 'Center', deformationType: 'none', deformationTarget: 'head_shell', category: 'Head motion' },
+  'Nod gently': { targetPart: 'head', targetLabel: 'Head', side: 'Center', deformationType: 'none', deformationTarget: 'head_shell', category: 'Head motion' },
+  'Look down': { targetPart: 'head', targetLabel: 'Head', side: 'Center', deformationType: 'none', deformationTarget: 'head_shell', category: 'Head motion' },
+  'Look up': { targetPart: 'head', targetLabel: 'Head', side: 'Center', deformationType: 'none', deformationTarget: 'head_shell', category: 'Head motion' },
+  'Soft head inflate': { targetPart: 'head', targetLabel: 'Head', side: 'Center', deformationType: 'inflate', deformationTarget: 'head_shell', category: 'Material deformation' },
+  'Forward / Backward Reach': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Right', deformationType: 'none', deformationTarget: 'arm_hand', category: 'Directional arm motion' },
+  'Side Lift': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Right', direction: 'Forward', deformationType: 'none', deformationTarget: 'arm_hand', category: 'Directional arm motion' },
+  'Arm Inflate': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Right', deformationType: 'inflate', deformationTarget: 'arm_hand', category: 'Arm deformation' },
+  Breathing: { targetPart: 'body', targetLabel: 'Chest + Belly', side: 'Center', deformationType: 'inflate', deformationTarget: 'chest_belly', category: 'Breathing deformation' },
+  'Hand forward': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Both', deformationType: 'none', category: 'Motion' },
+  'Hand back': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Both', deformationType: 'none', category: 'Motion' },
+  'Hand up': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Both', deformationType: 'none', category: 'Motion' },
+  'Hand down': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Both', deformationType: 'none', category: 'Motion' },
+  'Open arms': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Both', deformationType: 'none', category: 'Motion' },
+  'Close arms': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Both', deformationType: 'none', category: 'Motion' },
   'Raise hand': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Both', deformationType: 'none', category: 'Motion' },
   'Lower hand': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Both', deformationType: 'none', category: 'Motion' },
   'Reach forward': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Both', deformationType: 'none', category: 'Motion' },
@@ -139,8 +288,8 @@ const moduleResponseMap = {
   'Warm hand': { targetPart: 'bothhands', targetLabel: 'Hand', side: 'Both', deformationType: 'surface', category: 'Thermal surface' },
   'Hand glow': { targetPart: 'bothhands', targetLabel: 'Hand', side: 'Both', deformationType: 'surface', category: 'Light response' },
   'Hold still': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Both', deformationType: 'none', category: 'Motion hold' },
-  'Breathing light': { targetPart: 'body', targetLabel: 'Chest', side: 'Center', deformationType: 'none', category: 'Light response' },
-  'Heartbeat light': { targetPart: 'body', targetLabel: 'Chest', side: 'Center', deformationType: 'none', category: 'Light response' },
+  'Breathing light': { targetPart: 'body', targetLabel: 'Chest', side: 'Center', deformationType: 'inflate', category: 'Light response' },
+  'Heartbeat light': { targetPart: 'body', targetLabel: 'Chest', side: 'Center', deformationType: 'inflate', category: 'Light response' },
   'Color change': { targetPart: 'body', targetLabel: 'Chest', side: 'Center', deformationType: 'surface', category: 'Surface display' },
   'Soft glow': { targetPart: 'body', targetLabel: 'Chest', side: 'Center', deformationType: 'surface', category: 'Surface display' },
   'Breathing rise': { targetPart: 'body', targetLabel: 'Belly', side: 'Center', deformationType: 'inflate', category: 'Material deformation' },
@@ -165,14 +314,14 @@ const materialTargets = {
 };
 
 const materialTargetLabels = {
-  body: 'Body',
-  head: 'Head',
-  leftarm: 'Left arm',
-  rightarm: 'Right arm',
-  botharms: 'Both arms',
-  lefthand: 'Left hand',
-  righthand: 'Right hand',
-  bothhands: 'Both hands',
+  body: '身体',
+  head: '头部',
+  leftarm: '左手臂',
+  rightarm: '右手臂',
+  botharms: '双手臂',
+  lefthand: '左手',
+  righthand: '右手',
+  bothhands: '双手',
 };
 
 const moduleDefaults = {
@@ -181,7 +330,7 @@ const moduleDefaults = {
   amount: 45,
   speed: 'Slow',
   rhythm: 'Single',
-  duration: 2,
+  duration: DEFAULT_NEW_CLIP_DURATION,
   warmth: 0.7,
   maxForce: 5,
   contactLimit: 10,
@@ -190,16 +339,22 @@ const moduleDefaults = {
   notes: '',
   targetPart: 'body',
   targetLabel: 'Body',
-  side: 'Center',
+  side: 'Right',
+  direction: 'Forward',
   category: 'Body movement',
   deformationType: 'none',
+  deformationPattern: 'none',
+  deformationTarget: 'arm_hand',
+  coverage: 'Single',
   surfaceState: 'Smooth',
   spatialPattern: 'Single area',
   touchArea: 'Arm',
+  variableMode: 'distance',
+  motionMode: 'sync',
 };
 
 const defaultState = {
-  selectedModule: 'Raise hand',
+  selectedModule: 'Forward / Backward Reach',
   selectedClipId: null,
   selectedTab: 'Configure',
   collapsedGroups: {},
@@ -230,7 +385,12 @@ const defaultState = {
 };
 
 const appState = loadState();
-appState.timeline = appState.timeline.map(normalizeTimelineClip);
+appState.timeline = appState.timeline
+  .filter((clip) => visibleModuleNames.has(clip.module) && !removedModules.has(clip.module))
+  .map(normalizeTimelineClip);
+if (appState.selectedClipId && !appState.timeline.some((clip) => clip.id === appState.selectedClipId)) {
+  appState.selectedClipId = null;
+}
 appState.selectedMaterialPart = moduleToMaterialTarget(getModuleConfig());
 const history = [];
 const future = [];
@@ -248,12 +408,42 @@ const threeState = {
   gridPlane: null,
   axesHelper: null,
   parts: {},
+  materialParts: {},
+  deformationParts: {},
   baseQuaternions: {},
+  baseScales: {},
   defaultMaterials: {},
   highlightOverlays: [],
+  inflationOverlays: {},
+  pointDeformationVisuals: [],
+  pointDeformationOverlays: [],
   loaded: false,
   lastFrame: 0,
   playbackFrame: null,
+};
+
+const robotNodeBindings = {
+  body: '躯干',
+  head: '头盔',
+  leftarm: '左手臂',
+  lefthand: '左手',
+  rightarm: '右手臂',
+  righthand: '右手',
+};
+
+const robotMaterialBindings = {
+  body: ['胸部', '腰部', '底部', '颈部（算胸部）'],
+  head: ['头盔'],
+  leftarm: ['左手臂'],
+  rightarm: ['右手臂'],
+  lefthand: ['左手'],
+  righthand: ['右手'],
+};
+
+const robotDeformationBindings = {
+  head: '头盔',
+  chest: '胸部',
+  belly: '腰部',
 };
 
 function loadState() {
@@ -263,7 +453,9 @@ function loadState() {
     const timeline = (saved.timeline?.length ? saved.timeline : structuredClone(baseClips))
       .filter((clip) => !removedModules.has(clip.module) && clip.action !== 'turnBody')
       .map(normalizeTimelineClip);
-    const selectedModule = removedModules.has(saved.selectedModule) ? defaultState.selectedModule : saved.selectedModule;
+    const selectedModule = visibleModuleNames.has(saved.selectedModule) && !removedModules.has(saved.selectedModule)
+      ? saved.selectedModule
+      : defaultState.selectedModule;
     const selectedClipId = timeline.some((clip) => clip.id === saved.selectedClipId) ? saved.selectedClipId : null;
     return {
       ...structuredClone(defaultState),
@@ -280,7 +472,16 @@ function loadState() {
   }
 }
 
+function getStaticModuleConfig(moduleName) {
+  return {
+    ...moduleDefaults,
+    ...(moduleResponseMap[moduleName] ?? {}),
+  };
+}
+
 function normalizeTimelineClip(clip) {
+  const staticConfig = getStaticModuleConfig(clip.module);
+  const duration = Number(clip.duration) || Number(staticConfig.duration) || durationForSpeed(staticConfig.speed);
   const track = inferTrack(clip.module);
   return {
     ...clip,
@@ -288,6 +489,18 @@ function normalizeTimelineClip(clip) {
     icon: getModuleIcon(clip.module),
     color: inferColor(clip.module),
     action: inferAction(clip.module),
+    duration,
+    side: clip.side ?? staticConfig.side,
+    direction: clip.direction ?? staticConfig.direction,
+    amount: clip.amount ?? staticConfig.amount,
+    speed: clip.speed ?? speedForDuration(duration),
+    rhythm: clip.rhythm ?? staticConfig.rhythm,
+    intensity: clip.intensity ?? staticConfig.intensity,
+    coverage: clip.coverage ?? staticConfig.coverage,
+    deformationPattern: clip.deformationPattern ?? staticConfig.deformationPattern,
+    deformationTarget: lockedDeformationTarget(clip.module),
+    variableMode: clip.variableMode ?? staticConfig.variableMode,
+    motionMode: clip.motionMode ?? staticConfig.motionMode,
   };
 }
 
@@ -358,8 +571,48 @@ function getModuleResponseMapping(moduleName = appState.selectedModule) {
     targetLabel: inferTrack(moduleName),
     side: inferTrack(moduleName) === 'Arm / Hand' ? 'Both' : 'Center',
     deformationType: 'none',
+    deformationTarget: inferTrack(moduleName) === 'Head'
+      ? 'head_shell'
+      : inferTrack(moduleName) === 'Arm / Hand'
+        ? 'arm_hand'
+        : 'chest_belly',
     category: inferTrack(moduleName),
   };
+}
+
+function lockedDeformationTarget(moduleName = appState.selectedModule) {
+  return getModuleResponseMapping(moduleName).deformationTarget ?? moduleDefaults.deformationTarget;
+}
+
+function deformationTargetLabel(targetKey) {
+  return deformationTargets.find((item) => item.key === targetKey)?.label ?? targetKey;
+}
+
+function deformationTargetIcon(targetKey) {
+  return deformationTargets.find((item) => item.key === targetKey)?.icon ?? '◇';
+}
+
+function selectedClipMatchesModule() {
+  const clip = getSelectedClip();
+  return Boolean(clip && clip.module === appState.selectedModule);
+}
+
+function moduleDirectionLabel(moduleName = appState.selectedModule) {
+  const name = moduleName.toLowerCase();
+  if (name.includes('up')) return '向上';
+  if (name.includes('down')) return '向下';
+  if (name.includes('left')) return '向左';
+  if (name.includes('right')) return '向右';
+  if (moduleName === 'Forward / Backward Reach') return '侧向抬起';
+  if (moduleName === 'Breathing') return '呼吸起伏';
+  return '前后方向';
+}
+
+function coverageOptionsForPattern(pattern) {
+  if (pattern === 'point') return ['Single', 'Row', 'Array'];
+  if (pattern === 'line') return ['Horizontal', 'Vertical', 'Curve'];
+  if (pattern === 'surface') return ['Small area', 'Whole part', 'Breathing area'];
+  return ['None'];
 }
 
 function getSelectedGroup() {
@@ -367,6 +620,7 @@ function getSelectedGroup() {
 }
 
 function getModuleIcon(moduleName = appState.selectedModule) {
+  if (moduleActionIcons[moduleName]) return moduleActionIcons[moduleName];
   const group = getScenarioModules().find((item) => item.items.includes(moduleName));
   return group?.icon ?? '◇';
 }
@@ -409,7 +663,11 @@ function isClipMuted(clip) {
 function createTimelineClip(moduleName, startTime = appState.currentTime, trackName = inferTrack(moduleName)) {
   const resolvedTrack = inferTrack(moduleName);
   const config = getModuleConfig(moduleName);
-  const duration = clamp(Number(config.duration) || 2, 0.5, TOTAL_DURATION);
+  const configuredDuration = Number(config.duration) || durationForSpeed(config.speed);
+  const initialDuration = configuredDuration < DEFAULT_NEW_CLIP_DURATION && config.speed !== 'Fast'
+    ? DEFAULT_NEW_CLIP_DURATION
+    : configuredDuration;
+  const duration = clamp(initialDuration, 0.5, TOTAL_DURATION);
   return {
     id: `clip-${Date.now()}-${Math.round(Math.random() * 1000)}`,
     module: moduleName,
@@ -420,6 +678,15 @@ function createTimelineClip(moduleName, startTime = appState.currentTime, trackN
     duration,
     action: inferAction(moduleName),
     droppedTrack: trackName,
+    side: config.side,
+    direction: config.direction,
+    amount: config.amount,
+    speed: speedForDuration(duration),
+    rhythm: config.rhythm,
+    intensity: config.intensity,
+    coverage: config.coverage,
+    deformationPattern: defaultDeformationPatternForModule(moduleName, config.deformationPattern),
+    deformationTarget: lockedDeformationTarget(moduleName),
   };
 }
 
@@ -445,6 +712,105 @@ function snapTimelineValue(value) {
   return Math.round(value * 2) / 2;
 }
 
+function durationForSpeed(speed) {
+  return actionSpeedDurations[speed] ?? actionSpeedDurations.Medium;
+}
+
+function speedForDuration(duration) {
+  const numericDuration = Number(duration) || actionSpeedDurations.Medium;
+  return Object.entries(actionSpeedDurations)
+    .reduce((closest, [speed, value]) => {
+      const distance = Math.abs(value - numericDuration);
+      return distance < closest.distance ? { speed, distance } : closest;
+    }, { speed: 'Medium', distance: Infinity }).speed;
+}
+
+function getSelectedClip() {
+  return appState.timeline.find((clip) => clip.id === appState.selectedClipId) ?? null;
+}
+
+function getPanelConfig() {
+  const config = getModuleConfig();
+  const clip = getSelectedClip();
+  if (!clip) {
+    return {
+      ...config,
+      deformationTarget: lockedDeformationTarget(appState.selectedModule),
+    };
+  }
+  return {
+    ...config,
+    side: clip.side ?? config.side,
+    direction: clip.direction ?? config.direction,
+    amount: clip.amount ?? config.amount,
+    speed: clip.speed ?? speedForDuration(clip.duration),
+    duration: clip.duration ?? config.duration,
+    enabled: !clip.muted,
+    rhythm: clip.rhythm ?? config.rhythm,
+    intensity: clip.intensity ?? config.intensity,
+    coverage: clip.coverage ?? config.coverage,
+    deformationPattern: defaultDeformationPatternForModule(clip.module, clip.deformationPattern ?? config.deformationPattern),
+    deformationTarget: lockedDeformationTarget(clip.module),
+    variableMode: clip.variableMode ?? config.variableMode,
+    motionMode: clip.motionMode ?? config.motionMode,
+  };
+}
+
+function getEditableActionTarget() {
+  const clip = getSelectedClip();
+  if (clip) return clip;
+  return getModuleConfig();
+}
+
+function isInflationModule(moduleName) {
+  return ['Soft head inflate', 'Arm Inflate', 'Breathing'].includes(moduleName);
+}
+
+function defaultDeformationPatternForModule(moduleName, pattern = 'none') {
+  if (isInflationModule(moduleName) && (!pattern || pattern === 'none')) return 'surface';
+  return pattern ?? 'none';
+}
+
+function setActionParameter(key, value, shouldSnapshot = true) {
+  if (shouldSnapshot) snapshot();
+  const target = getEditableActionTarget();
+  target[key] = value;
+  const moduleName = target.module ?? appState.selectedModule;
+  target.deformationTarget = lockedDeformationTarget(moduleName);
+
+  if (key === 'speed') {
+    target.duration = clamp(durationForSpeed(value), 0.5, target.start == null ? TOTAL_DURATION : TOTAL_DURATION - target.start);
+  }
+
+  if (key === 'duration') {
+    target.speed = speedForDuration(value);
+  }
+
+  if (key === 'deformationPattern') {
+    const coverageOptions = coverageOptionsForPattern(value);
+    target.coverage = coverageOptions.includes(target.coverage) ? target.coverage : coverageOptions[0];
+  }
+
+  if (target.id) {
+    appState.selectedClipId = target.id;
+  }
+
+  renderRightPanel();
+  renderTimeline();
+  applyTimelinePose(appState.currentTime);
+  applyPartHighlight();
+}
+
+function updateClipDuration(clip, duration) {
+  clip.duration = clamp(duration, 0.5, TOTAL_DURATION - clip.start);
+  clip.speed = speedForDuration(clip.duration);
+  if (clip.id === appState.selectedClipId) {
+    const config = getModuleConfig(clip.module);
+    config.duration = clip.duration;
+    config.speed = clip.speed;
+  }
+}
+
 function scrubTimelineTo(event) {
   appState.currentTime = timelineTimeFromPointer(event);
   applyTimelinePose(appState.currentTime);
@@ -466,13 +832,15 @@ function deleteTimelineClip(clipId) {
   if (index < 0) return;
   snapshot();
   const [deleted] = appState.timeline.splice(index, 1);
+  const wasSelected = appState.selectedClipId === clipId;
   if (appState.selectedClipId === clipId) {
     appState.selectedClipId = null;
   }
   renderTimeline();
+  if (wasSelected) renderRightPanel();
   applyTimelinePose(appState.currentTime);
   applyPartHighlight();
-  setToast(`${deleted.module} removed from timeline`);
+  setToast('已删除动作');
 }
 
 function moduleToMaterialTarget(config = getModuleConfig()) {
@@ -498,10 +866,10 @@ function appTemplate() {
       <header class="topbar" id="topbar"></header>
       <aside class="left-panel">
         <div class="panel-title">
-          <h2>Behavior Modules</h2>
-          <button id="addModuleButton" title="Add custom module">＋</button>
+          <h2>行为模块</h2>
+          <button id="addModuleButton" title="添加自定义模块">＋</button>
         </div>
-        <div id="moduleGroups"></div>
+        <div class="module-groups" id="moduleGroups"></div>
       </aside>
       <main class="workspace">
         ${robotPreviewTemplate()}
@@ -521,10 +889,10 @@ function robotPreviewTemplate() {
       <div class="scene-floor-shadow"></div>
       <div class="view-header" id="viewHeader">${viewHeaderTemplate()}</div>
       <div class="viewport-tools top">
-        <button data-view-action="toggle-grid" class="${appState.showGrid ? 'active' : ''}" title="Grid" aria-label="Toggle grid">▦</button>
-        <button data-view-action="toggle-highlight" class="${appState.showPartHighlight ? 'active' : ''}" title="Part highlight" aria-label="Toggle part highlight">⬡</button>
-        <button data-view-action="toggle-user-reference" class="${appState.showUserReference ? 'active' : ''}" title="User reference" aria-label="Toggle user reference">♙</button>
-        <button data-view-action="fullscreen" title="Fullscreen preview" aria-label="Fullscreen preview">⤢</button>
+        <button data-view-action="toggle-grid" class="${appState.showGrid ? 'active' : ''}" title="网格" aria-label="切换网格">▦</button>
+        <button data-view-action="toggle-highlight" class="${appState.showPartHighlight ? 'active' : ''}" title="部位高亮" aria-label="切换部位高亮">⬡</button>
+        <button data-view-action="toggle-user-reference" class="${appState.showUserReference ? 'active' : ''}" title="用户参考" aria-label="切换用户参考">♙</button>
+        <button data-view-action="fullscreen" title="全屏预览" aria-label="全屏预览">⤢</button>
       </div>
       <div class="viewport-tools left">
         <button data-view-action="select" class="active">↖</button>
@@ -542,17 +910,27 @@ function robotPreviewTemplate() {
       <div class="user-reference ${appState.showUserReference ? 'visible' : ''}" id="userReference" aria-hidden="${appState.showUserReference ? 'false' : 'true'}">
         <span class="user-reference-ring"></span>
         <span class="user-reference-person">♙</span>
-        <span class="user-reference-label">User</span>
+        <span class="user-reference-label">用户</span>
       </div>
-      <canvas id="robotCanvas" aria-label="GentleRobot 3D model preview"></canvas>
-      <div class="viewport-status" id="viewportStatus">Loading robot model...</div>
+      <canvas id="robotCanvas" aria-label="GentleRobot 3D 模型预览"></canvas>
+      <svg class="deform-link-layer" id="deformLinkLayer" aria-hidden="true">
+        <path id="deformLinkPath" fill="none" />
+        <circle id="deformLinkDot" r="4.5" />
+      </svg>
+      <div class="deform-bubble anchor-head" id="deformBubble" hidden>
+        <div class="deform-bubble-ring">
+          <img id="deformBubbleImg" alt="形变视频预览" />
+        </div>
+        <div class="deform-bubble-caption" id="deformBubbleCaption"></div>
+      </div>
+      <div class="viewport-status" id="viewportStatus">正在加载机器人模型...</div>
     </div>
   `;
 }
 
 function viewHeaderTemplate() {
   const currentView = cameraViews[appState.cameraView] ?? cameraViews.front;
-  const label = appState.sceneBackdrop === 'studio' ? currentView.label : 'Scene View';
+  const label = appState.sceneBackdrop === 'studio' ? currentView.label : '场景视图';
   return `
     <div class="camera-selector">
       <button class="select-pill ${appState.cameraMenuOpen ? 'active' : ''}" id="cameraMenuButton">
@@ -599,7 +977,7 @@ function renderTopbar() {
     <div class="scene-selector">
       <button class="scenario-select ${appState.sceneMenuOpen ? 'active' : ''}" id="sceneMenuButton">
         <span>⬡</span>
-        <strong>${currentScene.label} Scene</strong>
+        <strong>${currentScene.label}场景</strong>
         <span class="select-arrow">⌄</span>
       </button>
       <div class="scenario-menu" id="sceneMenu" ${appState.sceneMenuOpen ? '' : 'hidden'}>
@@ -607,19 +985,19 @@ function renderTopbar() {
           .map(([key, item]) => `
             <button class="${key === appState.sceneBackdrop ? 'active' : ''}" data-scene-backdrop="${key}">
               <span class="scene-check">${key === appState.sceneBackdrop ? '✓' : ''}</span>
-              <span>${item.label} Scene</span>
+              <span>${item.label}场景</span>
             </button>
           `)
           .join('')}
       </div>
     </div>
-    <button class="save-button" id="saveButton" title="Save to browser">▣</button>
+    <button class="save-button" id="saveButton" title="保存到浏览器">▣</button>
     <div class="top-spacer"></div>
-    <div class="connection"><i></i> Robot connected</div>
+    <div class="connection"><i></i> 机器人已连接</div>
     <button class="icon-button" id="undoButton" ${history.length ? '' : 'disabled'}>↶</button>
     <button class="icon-button" id="redoButton" ${future.length ? '' : 'disabled'}>↷</button>
-    <button class="preview-button" id="previewButton">▷ Preview</button>
-    <button class="deploy-button" id="deployButton">Deploy <span>⌄</span></button>
+    <button class="preview-button" id="previewButton">▷ 预览</button>
+    <button class="deploy-button" id="deployButton">导出 <span>⌄</span></button>
     <button class="icon-button" id="moreButton">⋮</button>
   `;
 }
@@ -627,33 +1005,32 @@ function renderTopbar() {
 function renderModules() {
   document.querySelector('#moduleGroups').innerHTML = getScenarioModules()
     .map((group) => {
-      const collapsed = appState.collapsedGroups[group.group];
       const items = group.items
         .map((item) => {
           const active = item === appState.selectedModule;
           const disabled = getModuleConfig(item).enabled === false;
           return `
             <button
-              class="module-item ${active ? 'active' : ''} ${disabled ? 'disabled-module' : ''}"
+              class="module-item action-chip ${active ? 'active' : ''} ${disabled ? 'disabled-module' : ''}"
               data-module="${item}"
               draggable="true"
+              title="${displayModuleName(item)}"
             >
-              <span class="item-icon">${active ? '▶' : '○'}</span>
-              <span>${item}</span>
-              ${active ? '<span class="more">•••</span>' : ''}
+              <span class="item-icon">${moduleActionIcons[item] ?? group.icon}</span>
+              <span>${displayModuleName(item)}</span>
             </button>
           `;
         })
         .join('');
 
       return `
-        <section class="module-group ${collapsed ? 'collapsed' : ''}">
+        <section class="module-group part-action-card">
           <button class="group-title" data-group="${group.group}">
             <span class="group-icon">${group.icon}</span>
-            <span>${group.group}</span>
-            <span class="chevron">${collapsed ? '›' : '⌄'}</span>
+            <span>${displayGroupName(group.group)}</span>
+            <span class="part-count">${group.items.length}</span>
           </button>
-          <div class="module-items">${collapsed ? '' : items}</div>
+          <div class="module-items">${items}</div>
         </section>
       `;
     })
@@ -661,31 +1038,376 @@ function renderModules() {
 }
 
 function renderRightPanel() {
-  const config = getModuleConfig();
-  const tabs = ['Configure', 'Parameters', 'Notes'];
+  const selectedClip = getSelectedClip();
+  if (!selectedClip) {
+    renderEmptyInspector();
+    refreshDeformationBubble();
+    return;
+  }
+
+  const config = getPanelConfig();
+  const moduleName = selectedClip.module;
+  const isInflationAction = isInflationModule(moduleName);
+  const isReachAction = moduleName === 'Side Lift';
+  const trackName = selectedClip.track ?? inferTrack(moduleName);
+  const showSideControl = trackName === 'Arm / Hand';
+  const targetLabel = deformationTargetLabel(config.deformationTarget);
 
   document.querySelector('#rightPanel').innerHTML = `
     <header class="inspector-head">
-      <div class="hand-mark">${getModuleIcon()}</div>
-      <div><h2>${appState.selectedModule}</h2></div>
+      <div class="hand-mark">${getModuleIcon(moduleName)}</div>
+      <div>
+        <h2>动作检查器</h2>
+        <p>正在编辑时间轴动作</p>
+      </div>
       <label class="switch">
         <input id="moduleEnabled" type="checkbox" ${config.enabled ? 'checked' : ''} />
         <span></span>
       </label>
     </header>
-    <nav class="tabs">
-      ${tabs.map((tab) => `<button data-tab="${tab}" class="${appState.selectedTab === tab ? 'active' : ''}">${tab}</button>`).join('')}
-    </nav>
-    ${renderTabContent(config)}
+    <section class="inspector-section selected-action-section">
+      <div class="section-row">
+        <h3>当前动作</h3>
+        <span>${config.duration.toFixed(1)} 秒动作</span>
+      </div>
+      <div class="action-summary-card is-clip">
+        <small>${isInflationAction ? '膨胀模块' : '动作模块'}</small>
+        <strong>${displayModuleName(moduleName)}</strong>
+        <div class="summary-meta">
+          <span>${getModuleIcon(moduleName)}</span>
+          <span>${targetLabel}</span>
+          <span>${config.duration.toFixed(1)}s</span>
+        </div>
+      </div>
+    </section>
+    ${isInflationAction
+      ? inflationParameterSection(config, { moduleName, showSideControl, targetLabel })
+      : motionParameterSection(config, { isReachAction, showSideControl, trackName })}
   `;
+  refreshDeformationBubble();
+}
+
+function renderEmptyInspector() {
+  document.querySelector('#rightPanel').innerHTML = `
+    <header class="inspector-head empty-inspector-head">
+      <div class="hand-mark">□</div>
+      <div>
+        <h2>动作检查器</h2>
+        <p>请选择时间轴中的动作块</p>
+      </div>
+    </header>
+    <section class="inspector-section empty-inspector-section">
+      <div class="empty-inspector-card">
+        <strong>还没有正在编辑的动作</strong>
+        <p>先把左侧动作拖到下方时间轴，再点击时间轴里的动作块。右侧只编辑已经进入方案的动作。</p>
+      </div>
+    </section>
+  `;
+}
+
+function motionParameterSection(config, options) {
+  return `
+    <section class="inspector-section action-parameters-section">
+      <div class="section-row">
+        <h3>动作参数</h3>
+        <span>${displayGroupName(options.trackName)}</span>
+      </div>
+      ${motionParameterTemplate(config, options)}
+    </section>
+  `;
+}
+
+function labeledSegmentedField(label, key, options, value) {
+  return `
+    <div class="parameter-row">
+      <span>${label}</span>
+      <div class="segmented-control" role="group" aria-label="${label}">
+        ${options.map((option) => `
+          <button
+            data-action-param-button="${key}"
+            data-value="${option.value}"
+            class="${option.value === value ? 'active' : ''}"
+          >${option.label}</button>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function variableModeField(config) {
+  const isLine = config.deformationPattern === 'line';
+  return labeledSegmentedField('变量模式', 'variableMode', [
+    { value: 'distance', label: isLine ? '线距' : '点距' },
+    { value: 'radius', label: isLine ? '线宽' : '半径' },
+  ], config.variableMode);
+}
+
+function motionModeField(config) {
+  const isLine = config.deformationPattern === 'line';
+  return labeledSegmentedField('运动方式', 'motionMode', [
+    { value: 'sync', label: '同步' },
+    { value: 'wave', label: '波浪' },
+    { value: 'edges', label: isLine ? '隔条' : '隔点' },
+  ], config.motionMode);
+}
+
+function inflationParameterSection(config, { moduleName, showSideControl, targetLabel }) {
+  const patternChoices = deformationPatterns.filter((item) => item.key !== 'none');
+  const hasPointLinePreview = ['point', 'line'].includes(config.deformationPattern);
+  return `
+    <section class="inspector-section surface-response-section">
+      <div class="section-row">
+        <h3>膨胀参数</h3>
+        <span>${targetLabel}</span>
+      </div>
+      <div class="locked-target-card">
+        <b>${deformationTargetIcon(config.deformationTarget)}</b>
+        <div>
+          <small>膨胀部位</small>
+          <strong>${targetLabel}</strong>
+        </div>
+      </div>
+      ${showSideControl ? segmentedField('侧别', 'side', actionSideOptions, config.side) : ''}
+      ${choiceGrid('形变方式', patternChoices, config.deformationPattern, 'deformation-pattern')}
+      ${hasPointLinePreview ? variableModeField(config) : ''}
+      ${hasPointLinePreview ? motionModeField(config) : ''}
+      ${deformationLivePreviewTemplate(config)}
+      ${amountField(config.amount)}
+      ${segmentedField('节奏', 'rhythm', responseRhythmOptions, config.rhythm)}
+      ${segmentedField('速度', 'speed', responseSpeedOptions, config.speed)}
+      ${intensityField(config.intensity)}
+      <p class="section-hint">${displayModuleName(moduleName)}只调整材料/表面形变，不显示额外动作参数。面表示整体膨胀/呼吸，点和线用于局部形变提示。</p>
+    </section>
+  `;
+}
+
+function motionParameterTemplate(config, { isReachAction, showSideControl, trackName }) {
+  if (trackName === 'Head') {
+    return `
+      <div class="read-only-field">
+        <span>方向</span>
+        <strong>${moduleDirectionLabel()}</strong>
+      </div>
+      ${amountField(config.amount)}
+      ${segmentedField('速度', 'speed', responseSpeedOptions, config.speed)}
+    `;
+  }
+
+  if (trackName === 'Chest + Belly') {
+    return `
+      ${amountField(config.amount)}
+      ${segmentedField('节奏', 'rhythm', responseRhythmOptions, config.rhythm)}
+      ${segmentedField('速度', 'speed', responseSpeedOptions, config.speed)}
+    `;
+  }
+
+  return `
+      ${showSideControl ? segmentedField('侧别', 'side', actionSideOptions, config.side) : ''}
+      ${isReachAction ? segmentedField('方向', 'direction', reachDirectionOptions, config.direction) : ''}
+      ${amountField(config.amount)}
+      ${segmentedField('速度', 'speed', responseSpeedOptions, config.speed)}
+  `;
+}
+
+function surfaceResponseParameterTemplate(config) {
+  if (config.deformationPattern === 'none') {
+    return '<p class="section-hint">当前动作未启用表面形变。</p>';
+  }
+
+  const coverageOptions = coverageOptionsForPattern(config.deformationPattern);
+  return `
+    ${segmentedField('覆盖方式', 'coverage', coverageOptions, config.coverage)}
+    ${segmentedField('节奏', 'rhythm', responseRhythmOptions, config.rhythm)}
+    ${intensityField(config.intensity)}
+  `;
+}
+
+function segmentedField(label, key, options, value) {
+  return `
+    <div class="parameter-row">
+      <span>${label}</span>
+      <div class="segmented-control" role="group" aria-label="${label}">
+        ${options.map((option) => `
+          <button
+            data-action-param-button="${key}"
+            data-value="${option}"
+            class="${option === value ? 'active' : ''}"
+          >${displayOption(option)}</button>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function amountField(value) {
+  const safeValue = clamp(Number(value) || 0, 0, 100);
+  return `
+    <label class="parameter-row amount-row">
+      <span>幅度</span>
+      <input data-action-param="amount" type="range" min="0" max="100" step="1" value="${safeValue}" />
+      <output>${safeValue}</output>
+    </label>
+  `;
+}
+
+function intensityField(value) {
+  const safeValue = clamp(Number(value) || 0, 0, 100);
+  return `
+    <label class="parameter-row amount-row">
+      <span>强度</span>
+      <input data-action-param="intensity" type="range" min="0" max="100" step="1" value="${safeValue}" />
+      <output>${safeValue}</output>
+    </label>
+  `;
+}
+
+function choiceGrid(label, items, value, datasetName) {
+  const safeValue = items.some((item) => item.key === value) ? value : items[0]?.key;
+  return `
+    <div class="choice-block">
+      <h4>${label}</h4>
+      <div class="choice-grid">
+        ${items.map((item) => `
+          <button
+            class="choice-card ${item.key === safeValue ? 'active' : ''}"
+            data-${datasetName}="${item.key}"
+          >
+            <b>${item.icon}</b>
+            <span>${item.label}</span>
+            ${item.description ? `<small>${item.description}</small>` : ''}
+          </button>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function deformationLivePreviewTemplate(config) {
+  const targetLabel = deformationTargets.find((item) => item.key === config.deformationTarget)?.label ?? config.deformationTarget;
+  const patternLabel = deformationPatterns.find((item) => item.key === config.deformationPattern)?.label ?? config.deformationPattern;
+  const live = ['point', 'line'].includes(config.deformationPattern);
+  if (config.deformationPattern === 'none') {
+    return `
+      <div class="live-preview-frame">
+        <strong>无表面回应</strong>
+        <span>${targetLabel}</span>
+        <small>该动作仅使用动作参数。</small>
+      </div>
+    `;
+  }
+  const isLine = config.deformationPattern === 'line';
+  const variableLabel = config.variableMode === 'radius' ? (isLine ? '线宽' : '半径') : (isLine ? '线距' : '点距');
+  const motionLabel = { sync: '同步', wave: '波浪', edges: isLine ? '隔条' : '隔点' }[config.motionMode] ?? '同步';
+  return `
+    <div class="live-preview-frame ${live ? 'active' : ''}">
+      <strong>${live ? '已在 3D 视图气泡中预览' : '预览待接入'}</strong>
+      <span>${live ? `${patternLabel} · ${variableLabel} · ${motionLabel} · ${targetLabel}` : `${patternLabel} · ${targetLabel}`}</span>
+      <small>${live ? '3D 视图右上方的圆形气泡正在播放对应形变视频。' : '该形变方式已保存到动作块，后续可接入可视化。'}</small>
+    </div>
+  `;
+}
+
+function deformationVideoFor(config) {
+  const pattern = config.deformationPattern;
+  if (pattern !== 'point' && pattern !== 'line') return null;
+  const isLine = pattern === 'line';
+  const series = isLine
+    ? (config.variableMode === 'radius' ? 'line_width' : 'line_distance')
+    : (config.variableMode === 'radius' ? 'point_radius' : 'point_distance');
+  const motion = config.motionMode ?? 'sync';
+  const file = motion === 'wave'
+    ? '方式2-波浪.gif'
+    : motion === 'edges'
+      ? (isLine ? '方式3-隔条.gif' : '方式3-隔点.gif')
+      : '方式1-同步.gif';
+  return encodeURI(`/deformations/${series}/${file}`);
+}
+
+const bubbleAnchorState = { object: null, cls: '' };
+const bubbleProjectVector = new THREE.Vector3();
+
+function bubbleAnchorForTarget(config) {
+  if (config.deformationTarget === 'head_shell') {
+    return { object: threeState.parts.head ?? null, cls: 'anchor-head' };
+  }
+  if (config.deformationTarget === 'arm_hand') {
+    const key = config.side === 'Left' ? 'leftarm' : 'rightarm';
+    return { object: threeState.parts[key] ?? threeState.parts.rightarm ?? null, cls: 'anchor-arm' };
+  }
+  return { object: threeState.deformationParts.chest ?? threeState.parts.body ?? null, cls: 'anchor-chest' };
+}
+
+function refreshDeformationBubble() {
+  const bubble = document.querySelector('#deformBubble');
+  if (!bubble) return;
+  const layer = document.querySelector('#deformLinkLayer');
+  const clip = getSelectedClip();
+  const config = getPanelConfig();
+  const video = clip && isInflationModule(clip.module) ? deformationVideoFor(config) : null;
+  if (!video) {
+    bubble.hidden = true;
+    layer?.classList.remove('visible');
+    bubbleAnchorState.object = null;
+    bubbleAnchorState.cls = '';
+    return;
+  }
+  const isLine = config.deformationPattern === 'line';
+  const patternLabel = isLine ? '线' : '点';
+  const variableLabel = config.variableMode === 'radius' ? (isLine ? '线宽' : '半径') : (isLine ? '线距' : '点距');
+  const motionLabel = { sync: '同步', wave: '波浪', edges: isLine ? '隔条' : '隔点' }[config.motionMode] ?? '同步';
+  const img = bubble.querySelector('#deformBubbleImg');
+  if (img && img.getAttribute('src') !== video) img.src = video;
+  const caption = bubble.querySelector('#deformBubbleCaption');
+  if (caption) caption.textContent = `${patternLabel} · ${variableLabel} · ${motionLabel}`;
+  const anchor = bubbleAnchorForTarget(config);
+  bubble.classList.remove('anchor-head', 'anchor-arm', 'anchor-chest');
+  bubble.classList.add(anchor.cls);
+  bubble.hidden = false;
+  bubbleAnchorState.object = anchor.object;
+  bubbleAnchorState.cls = anchor.cls;
+  layer?.classList.add('visible');
+}
+
+function updateDeformationLink() {
+  const bubble = document.querySelector('#deformBubble');
+  const layer = document.querySelector('#deformLinkLayer');
+  const path = document.querySelector('#deformLinkPath');
+  const dot = document.querySelector('#deformLinkDot');
+  if (!bubble || !layer || !path || !dot) return;
+  if (bubble.hidden || !bubbleAnchorState.object || !threeState.camera) {
+    layer.classList.remove('visible');
+    return;
+  }
+  layer.classList.add('visible');
+  const viewport = document.querySelector('#viewport');
+  const rect = viewport.getBoundingClientRect();
+  bubbleAnchorState.object.getWorldPosition(bubbleProjectVector);
+  bubbleProjectVector.project(threeState.camera);
+  if (bubbleProjectVector.z > 1) {
+    path.style.opacity = '0';
+    dot.style.opacity = '0';
+    return;
+  }
+  path.style.opacity = '';
+  dot.style.opacity = '';
+  const tx = (bubbleProjectVector.x * 0.5 + 0.5) * rect.width;
+  const ty = (-bubbleProjectVector.y * 0.5 + 0.5) * rect.height;
+  const bubbleRect = bubble.querySelector('.deform-bubble-ring').getBoundingClientRect();
+  const bx = bubbleRect.left + bubbleRect.width / 2 - rect.left;
+  const by = bubbleRect.top + bubbleRect.height / 2 - rect.top;
+  const mx = (bx + tx) / 2;
+  const my = Math.min(by, ty) - 26;
+  path.setAttribute('d', `M ${bx} ${by} Q ${mx} ${my} ${tx} ${ty}`);
+  dot.setAttribute('cx', tx);
+  dot.setAttribute('cy', ty);
 }
 
 function renderTabContent(config) {
   if (appState.selectedTab === 'Notes') {
     return `
       <section class="inspector-section notes-section">
-        <h3>Design Notes</h3>
-        <textarea id="notesInput" placeholder="Record participant comments, rationale, or open questions...">${config.notes ?? ''}</textarea>
+        <h3>设计备注</h3>
+        <textarea id="notesInput" placeholder="记录参与者反馈、设计理由或待讨论问题...">${config.notes ?? ''}</textarea>
       </section>
       ${renderActionButtons()}
     `;
@@ -694,13 +1416,13 @@ function renderTabContent(config) {
   if (appState.selectedTab === 'Parameters') {
     return `
       <section class="inspector-section">
-        <h3>Detailed Parameters</h3>
-        ${numberField('duration', 'Duration', config.duration, 0.5, 12, 0.1, 's')}
-        ${numberField('amount', 'Amount', config.amount, 0, 100, 1, '%')}
-        ${numberField('intensity', 'Intensity', config.intensity, 0, 100, 1, '%')}
-        ${numberField('contactLimit', 'Contact limit', config.contactLimit, 1, 30, 0.5, 's')}
-        ${numberField('blendIn', 'Blend in', config.blendIn, 0, 3, 0.1, 's')}
-        ${numberField('blendOut', 'Blend out', config.blendOut, 0, 3, 0.1, 's')}
+        <h3>详细参数</h3>
+        ${numberField('duration', '时长', config.duration, 0.5, 12, 0.1, 's')}
+        ${numberField('amount', '幅度', config.amount, 0, 100, 1, '%')}
+        ${numberField('intensity', '强度', config.intensity, 0, 100, 1, '%')}
+        ${numberField('contactLimit', '接触上限', config.contactLimit, 1, 30, 0.5, 's')}
+        ${numberField('blendIn', '渐入', config.blendIn, 0, 3, 0.1, 's')}
+        ${numberField('blendOut', '渐出', config.blendOut, 0, 3, 0.1, 's')}
       </section>
       ${renderActionButtons()}
     `;
@@ -716,31 +1438,31 @@ function renderTabContent(config) {
 }
 
 function renderActionButtons() {
-  return `<button class="add-button" id="addToTimelineButton">⊕ Add to Timeline</button>`;
+  return `<button class="add-button" id="addToTimelineButton">⊕ 加入时间轴</button>`;
 }
 
 function actionMappingTemplate(config) {
   return `
     <section class="inspector-section action-mapping-section">
       <div class="section-row">
-        <h3>Action Mapping</h3>
-        <span>3D highlighted</span>
+        <h3>动作映射</h3>
+        <span>3D 已高亮</span>
       </div>
       <div class="mapping-grid">
         <div>
-          <small>Action</small>
-          <strong>${appState.selectedModule}</strong>
+          <small>动作</small>
+          <strong>${displayModuleName(appState.selectedModule)}</strong>
         </div>
         <div>
-          <small>Target part</small>
-          <strong>${config.targetLabel}</strong>
+          <small>目标部位</small>
+          <strong>${displayGroupName(config.targetLabel)}</strong>
         </div>
         <div>
-          <small>Side</small>
-          <strong>${config.side}</strong>
+          <small>侧别</small>
+          <strong>${displayOption(config.side)}</strong>
         </div>
         <div>
-          <small>Type</small>
+          <small>类型</small>
           <strong>${config.category}</strong>
         </div>
       </div>
@@ -752,8 +1474,8 @@ function deformationResponseTemplate(config) {
   return `
     <section class="inspector-section deformation-section">
       <div class="section-row">
-        <h3>Deformation Response</h3>
-        <span>${deformationTypes[config.deformationType]?.label ?? 'No deformation'}</span>
+        <h3>形变回应</h3>
+        <span>${deformationTypes[config.deformationType]?.label ?? '无形变'}</span>
       </div>
       <div class="deformation-cards">
         ${Object.entries(deformationTypes).map(([key, item]) => {
@@ -763,7 +1485,7 @@ function deformationResponseTemplate(config) {
               <b>${item.icon}</b>
               <span>${item.label}</span>
               <small>${item.description}</small>
-              ${recommended ? '<em>Recommended</em>' : ''}
+              ${recommended ? '<em>推荐</em>' : ''}
             </button>
           `;
         }).join('')}
@@ -775,21 +1497,21 @@ function deformationResponseTemplate(config) {
 function responseParametersTemplate(config) {
   const extraControls = [
     config.deformationType === 'surface'
-      ? selectField('surfaceState', 'Surface state', config.surfaceState, surfaceStateOptions)
+      ? selectField('surfaceState', '表面状态', config.surfaceState, surfaceStateOptions)
       : '',
     config.deformationType === 'wave'
-      ? selectField('spatialPattern', 'Spatial pattern', config.spatialPattern, spatialPatternOptions)
+      ? selectField('spatialPattern', '空间模式', config.spatialPattern, spatialPatternOptions)
       : '',
   ].join('');
 
   return `
     <section class="inspector-section response-parameters-section">
-      <h3>Response Parameters</h3>
-      ${rangeField('amount', 'Amount', config.amount, 0, 100, 1, '%')}
-      ${selectField('speed', 'Speed', config.speed, responseSpeedOptions)}
-      ${selectField('rhythm', 'Rhythm', config.rhythm, responseRhythmOptions)}
-      ${numberField('duration', 'Duration', config.duration, 0.5, 12, 0.1, 's')}
-      ${rangeField('intensity', 'Intensity', config.intensity, 0, 100, 1, '%')}
+      <h3>回应参数</h3>
+      ${rangeField('amount', '幅度', config.amount, 0, 100, 1, '%')}
+      ${selectField('speed', '速度', config.speed, responseSpeedOptions)}
+      ${selectField('rhythm', '节奏', config.rhythm, responseRhythmOptions)}
+      ${numberField('duration', '时长', config.duration, 0.5, 12, 0.1, 's')}
+      ${rangeField('intensity', '强度', config.intensity, 0, 100, 1, '%')}
       ${extraControls}
     </section>
   `;
@@ -821,7 +1543,7 @@ function selectField(key, label, value, options) {
     <label class="field">
       <span>${label}</span>
       <select data-param="${key}" class="select-value">
-        ${options.map((option) => `<option value="${option}" ${option === value ? 'selected' : ''}>${option}</option>`).join('')}
+        ${options.map((option) => `<option value="${option}" ${option === value ? 'selected' : ''}>${displayOption(option)}</option>`).join('')}
       </select>
     </label>
   `;
@@ -833,7 +1555,7 @@ function materialTemplate() {
   return `
     <section class="inspector-section material-section">
       <div class="section-row">
-        <h3>Material Preset</h3>
+        <h3>材质预设</h3>
         <span id="materialTarget">${materialTargetLabels[target]}</span>
       </div>
       <div class="part-segment" id="materialPartSegment">
@@ -846,8 +1568,8 @@ function materialTemplate() {
           </button>
         `).join('')}
       </div>
-      <button class="reset-material-button" id="resetMaterialsButton">Reset materials</button>
-      <p class="material-note">Presets are temporary viewport materials. Later Meshy PBR textures can replace these swatches.</p>
+      <button class="reset-material-button" id="resetMaterialsButton">恢复默认材质</button>
+      <p class="material-note">这里是临时预览材质，后续可以替换为 Meshy 生成的 PBR 材质。</p>
     </section>
   `;
 }
@@ -859,31 +1581,55 @@ function getMaterialForTarget(targetKey) {
 
 function renderTimeline() {
   const activeIds = activeClipIds();
+  const visibleTracks = getVisibleTimelineTracks();
+  const compact = appState.timeline.length === 0;
   document.querySelector('#timelinePanel').innerHTML = `
-    <div class="timeline-toolbar">
-      <div class="playback">
-        <button class="play ${appState.playing ? 'active' : ''}" id="playButton">${appState.playing ? '❚❚' : '▶'}</button>
-        <button id="stopButton">■</button>
-        <button class="speed" id="speedButton">${appState.speed.toFixed(1)}x ⌄</button>
-        <span class="timecode"><b>${formatTime(appState.currentTime)}</b><em>/</em>${formatTime(TOTAL_DURATION)}</span>
+    <div class="timeline-shell ${compact ? 'compact' : 'expanded'}">
+      <div class="timeline-toolbar">
+        <div class="playback">
+          <button class="play ${appState.playing ? 'active' : ''}" id="playButton">${appState.playing ? '❚❚' : '▶'}</button>
+          <button id="stopButton">■</button>
+          <button class="speed" id="speedButton">${appState.speed.toFixed(1)}x ⌄</button>
+          <span class="timecode"><b>${formatTime(appState.currentTime)}</b><em>/</em>${formatTime(TOTAL_DURATION)}</span>
+        </div>
+        <div class="zoom-tools">
+          <button data-view-action="reset-camera">⌕</button>
+          <button data-zoom="out">−</button>
+          <span></span>
+          <button data-zoom="in">⌕</button>
+          <button data-view-action="fullscreen">⛶</button>
+        </div>
       </div>
-      <div class="zoom-tools">
-        <button data-view-action="reset-camera">⌕</button>
-        <button data-zoom="out">−</button>
-        <span></span>
-        <button data-zoom="in">⌕</button>
-        <button data-view-action="fullscreen">⛶</button>
-      </div>
-    </div>
-    <div class="ruler">
-      <div></div>
-      ${[0, 4, 8, 12, 16, 20].map((time) => `<span style="left:${clipPercent(time)}%">${formatTime(time).slice(0, 5)}</span>`).join('')}
-    </div>
-    <div class="tracks">
-      <div class="playhead" style="left:calc(138px + ${clipPercent(appState.currentTime)}%)"><span>${formatTime(appState.currentTime)}</span></div>
-      ${timelineTracks.map((track) => trackTemplate(track, activeIds)).join('')}
+      ${compact ? compactTimelineTemplate() : `
+        <div class="ruler">
+          <div></div>
+          ${[0, 4, 8, 12, 16, 20].map((time) => `<span style="left:${clipPercent(time)}%">${formatTime(time).slice(0, 5)}</span>`).join('')}
+        </div>
+        <div class="tracks">
+          <div class="playhead" style="left:calc(138px + ${clipPercent(appState.currentTime)}%)"><span>${formatTime(appState.currentTime)}</span></div>
+          ${visibleTracks.map((track) => trackTemplate(track, activeIds)).join('')}
+        </div>
+      `}
     </div>
   `;
+}
+
+function compactTimelineTemplate() {
+  return `
+    <div class="compact-timeline-drop track-lane" data-track="Auto">
+      <span class="compact-drop-icon">＋</span>
+      <div>
+        <strong>拖入一个动作模块</strong>
+        <small>加入第一个动作后，会显示对应部位的时间轴轨道。</small>
+      </div>
+    </div>
+  `;
+}
+
+function getVisibleTimelineTracks() {
+  const occupiedTracks = new Set(appState.timeline.map((clip) => clip.track));
+  occupiedTracks.add(inferTrack(appState.selectedModule));
+  return timelineTracks.filter((track) => occupiedTracks.has(track.name));
 }
 
 function trackTemplate(track, activeIds) {
@@ -892,11 +1638,10 @@ function trackTemplate(track, activeIds) {
     <div class="track">
       <div class="track-label">
         <span>${track.icon}</span>
-        <strong>${track.name}</strong>
-        <button>⋮</button>
+        <strong>${displayGroupName(track.name)}</strong>
       </div>
       <div class="track-lane" data-track="${track.name}">
-        ${clips.length ? '' : '<span class="drop-hint">Drop action here</span>'}
+        ${clips.length ? '' : '<span class="drop-hint">拖入动作</span>'}
         ${clips.map((item) => clipTemplate(item, activeIds)).join('')}
       </div>
     </div>
@@ -908,17 +1653,21 @@ function clipTemplate(clip, activeIds) {
   const selected = clip.id === appState.selectedClipId;
   const muted = isClipMuted(clip);
   return `
-    <button
+    <div
       class="clip clip-${clip.color} ${muted ? 'muted' : ''} ${active ? 'is-playing' : ''} ${selected ? 'selected' : ''}"
       data-clip="${clip.id}"
+      role="button"
+      tabindex="0"
+      aria-label="${displayModuleName(clip.module)}，${clip.duration === Infinity ? '无限时长' : `${clip.duration.toFixed(1)} 秒`}"
       style="left:${clipPercent(clip.start)}%; width:${clipPercent(clip.duration)}%"
     >
-      <span>${clip.module}</span>
-      <small>${clip.duration === Infinity ? '∞' : `${clip.duration.toFixed(1)}s`}</small>
-      <i>•••</i>
-      <span class="clip-delete" data-delete-clip="${clip.id}" title="Remove from timeline">×</span>
-      <span class="clip-resize-handle" data-resize-clip="${clip.id}" title="Drag to change duration"></span>
-    </button>
+      <span class="clip-main">
+        <span class="clip-name">${displayModuleName(clip.module)}</span>
+        <small>${clip.duration === Infinity ? '∞' : `${clip.duration.toFixed(1)}s`}</small>
+      </span>
+      <button class="clip-delete" type="button" data-delete-clip="${clip.id}" aria-label="删除 ${displayModuleName(clip.module)}" title="从时间轴删除">×</button>
+      <span class="clip-resize-handle" data-resize-clip="${clip.id}" title="拖动调整时长"></span>
+    </div>
   `;
 }
 
@@ -936,22 +1685,22 @@ function renderModal() {
     <section class="summary-modal">
       <header>
         <div>
-          <h2>Deploy Preview</h2>
-          <p>Mock summary for study discussion. No robot is actually deployed.</p>
+          <h2>方案摘要</h2>
+          <p>用于研究讨论的模拟摘要，不会真实部署机器人。</p>
         </div>
         <button id="closeModalButton">×</button>
       </header>
       <div class="summary-grid">
-        <div><span>Scene</span><strong>${sceneBackdrops[appState.sceneBackdrop]?.label ?? 'Studio'}</strong></div>
-        <div><span>Selected module</span><strong>${appState.selectedModule}</strong></div>
-        <div><span>Target</span><strong>${getModuleConfig().targetLabel} · ${getModuleConfig().side}</strong></div>
-        <div><span>Deformation</span><strong>${deformationTypes[getModuleConfig().deformationType]?.label ?? 'No deformation'}</strong></div>
-        <div><span>Timeline clips</span><strong>${appState.timeline.length}</strong></div>
+        <div><span>场景</span><strong>${sceneBackdrops[appState.sceneBackdrop]?.label ?? '工作室'}</strong></div>
+        <div><span>当前模块</span><strong>${displayModuleName(appState.selectedModule)}</strong></div>
+        <div><span>目标部位</span><strong>${displayGroupName(getModuleConfig().targetLabel)} · ${displayOption(getModuleConfig().side)}</strong></div>
+        <div><span>形变</span><strong>${deformationTypes[getModuleConfig().deformationType]?.label ?? '无形变'}</strong></div>
+        <div><span>时间轴动作</span><strong>${appState.timeline.length}</strong></div>
       </div>
       <textarea readonly>${JSON.stringify(config, null, 2)}</textarea>
       <footer>
-        <button id="copyJsonButton">Copy JSON</button>
-        <button id="closeModalButtonFooter">Close</button>
+        <button id="copyJsonButton">复制 JSON</button>
+        <button id="closeModalButtonFooter">关闭</button>
       </footer>
     </section>
   `;
@@ -1063,15 +1812,15 @@ window.addEventListener('pointermove', (event) => {
     );
     appState.currentTime = clip.start;
   } else {
-    clip.duration = clamp(
+    updateClipDuration(clip, clamp(
       snapTimelineValue(timelineEdit.originalDuration + delta),
       0.5,
       TOTAL_DURATION - clip.start
-    );
-    getModuleConfig(clip.module).duration = clip.duration;
+    ));
   }
 
   renderTimeline();
+  if (clip.id === appState.selectedClipId) renderRightPanel();
   applyTimelinePose(appState.currentTime);
 });
 
@@ -1088,7 +1837,7 @@ window.addEventListener('pointerup', () => {
   document.body.classList.remove('moving-clip', 'resizing-clip');
   if (clip) {
     selectClip(clip);
-    setToast(timelineEdit.mode === 'resize' ? 'Duration updated' : 'Start time updated');
+    setToast(timelineEdit.mode === 'resize' ? '时长已更新' : '开始时间已更新');
   }
   timelineEdit = null;
 });
@@ -1111,6 +1860,15 @@ document.querySelector('#app').addEventListener('click', (event) => {
   const deleteClipTarget = event.target.closest('[data-delete-clip]');
   if (deleteClipTarget) {
     deleteTimelineClip(deleteClipTarget.dataset.deleteClip);
+    return;
+  }
+
+  const clickedClip = event.target.closest('[data-clip]');
+  if (clickedClip && !event.target.closest('[data-resize-clip]')) {
+    const clip = appState.timeline.find((item) => item.id === clickedClip.dataset.clip);
+    if (clip) {
+      selectClip(clip);
+    }
     return;
   }
 
@@ -1153,7 +1911,7 @@ document.querySelector('#app').addEventListener('click', (event) => {
     renderTopbar();
     renderViewHeader();
     applySceneBackdrop();
-    setToast(`${cameraViews[appState.cameraView].label} view · Studio background`);
+    setToast(`${cameraViews[appState.cameraView].label} · 工作室背景`);
     return;
   }
 
@@ -1185,7 +1943,7 @@ document.querySelector('#app').addEventListener('click', (event) => {
     appState.selectedMaterialPart = moduleToMaterialTarget(getModuleConfig(label));
     renderAll();
     applyPartHighlight();
-    setToast('Custom module added');
+    setToast('已添加自定义动作');
     return;
   }
 
@@ -1195,11 +1953,44 @@ document.querySelector('#app').addEventListener('click', (event) => {
     return;
   }
 
+  if (target.dataset.actionParamButton) {
+    if (!getSelectedClip()) {
+      setToast('请先点击时间轴中的动作块');
+      renderRightPanel();
+      return;
+    }
+    setActionParameter(target.dataset.actionParamButton, target.dataset.value);
+    return;
+  }
+
+  if (target.dataset.deformationPattern) {
+    if (!getSelectedClip()) {
+      setToast('请先点击时间轴中的动作块');
+      renderRightPanel();
+      return;
+    }
+    setActionParameter('deformationPattern', target.dataset.deformationPattern);
+    return;
+  }
+
+  if (target.dataset.deformationTarget) {
+    if (!getSelectedClip()) {
+      setToast('请先点击时间轴中的动作块');
+      renderRightPanel();
+      return;
+    }
+    setActionParameter('deformationTarget', target.dataset.deformationTarget);
+    return;
+  }
+
   if (target.dataset.deformationType) {
-    snapshot();
-    getModuleConfig().deformationType = target.dataset.deformationType;
-    renderRightPanel();
-    setToast(`${deformationTypes[target.dataset.deformationType].label} selected`);
+    if (!getSelectedClip()) {
+      setToast('请先点击时间轴中的动作块');
+      renderRightPanel();
+      return;
+    }
+    setActionParameter('deformationType', target.dataset.deformationType);
+    setToast(`已选择${deformationTypes[target.dataset.deformationType].label}`);
     return;
   }
 
@@ -1225,20 +2016,7 @@ document.querySelector('#app').addEventListener('click', (event) => {
     });
     applyAllMaterials();
     renderRightPanel();
-    setToast('Materials reset');
-    return;
-  }
-
-  if (target.dataset.clip) {
-    const clip = appState.timeline.find((item) => item.id === target.dataset.clip);
-    if (clip) {
-      appState.selectedModule = clip.module;
-      appState.currentTime = clip.start;
-      appState.selectedMaterialPart = moduleToMaterialTarget(getModuleConfig(clip.module));
-      renderAll();
-      applyTimelinePose(appState.currentTime);
-      applyPartHighlight();
-    }
+    setToast('材质已恢复默认');
     return;
   }
 
@@ -1264,13 +2042,13 @@ document.querySelector('#app').addEventListener('click', (event) => {
 
   if (target.id === 'previewButton') {
     playTimeline(0);
-    setToast('Preview started');
+    setToast('开始预览');
     return;
   }
 
   if (target.id === 'saveButton') {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(exportConfigForStorage()));
-    setToast('Saved to browser');
+    setToast('已保存到浏览器');
     return;
   }
 
@@ -1283,7 +2061,7 @@ document.querySelector('#app').addEventListener('click', (event) => {
     if (!history.length) return;
     future.push(JSON.stringify(exportConfigForStorage()));
     restore(history.pop());
-    setToast('Undo');
+    setToast('已撤销');
     return;
   }
 
@@ -1291,7 +2069,7 @@ document.querySelector('#app').addEventListener('click', (event) => {
     if (!future.length) return;
     history.push(JSON.stringify(exportConfigForStorage()));
     restore(future.pop());
-    setToast('Redo');
+    setToast('已重做');
     return;
   }
 
@@ -1301,7 +2079,8 @@ document.querySelector('#app').addEventListener('click', (event) => {
     appState.timeline.push(clip);
     appState.selectedClipId = clip.id;
     renderTimeline();
-    setToast('Added to timeline');
+    renderRightPanel();
+    setToast('已加入时间轴');
     return;
   }
 
@@ -1317,7 +2096,7 @@ document.querySelector('#app').addEventListener('click', (event) => {
 
   if (target.id === 'copyJsonButton') {
     navigator.clipboard?.writeText(JSON.stringify(exportConfig(), null, 2));
-    setToast('JSON copied');
+    setToast('JSON 已复制');
   }
 });
 
@@ -1371,7 +2150,7 @@ document.querySelector('#app').addEventListener('drop', (event) => {
   renderAll();
   applyTimelinePose(appState.currentTime);
   applyPartHighlight();
-  setToast(intendedTrack === resolvedTrack ? `Added to ${resolvedTrack}` : `Added to ${resolvedTrack}`);
+    setToast(`已加入${displayGroupName(resolvedTrack)}轨道`);
 });
 
 window.addEventListener('keydown', (event) => {
@@ -1385,7 +2164,22 @@ window.addEventListener('keydown', (event) => {
 
 document.querySelector('#app').addEventListener('input', (event) => {
   const target = event.target;
+  if (target.dataset?.actionParam) {
+    if (!getSelectedClip()) {
+      setToast('请先点击时间轴中的动作块');
+      renderRightPanel();
+      return;
+    }
+    const value = target.type === 'number' || target.type === 'range' ? Number(target.value) : target.value;
+    setActionParameter(target.dataset.actionParam, value, false);
+    return;
+  }
   if (!target.dataset?.param) return;
+  if (!getSelectedClip()) {
+    setToast('请先点击时间轴中的动作块');
+    renderRightPanel();
+    return;
+  }
   const config = getModuleConfig();
   const value = target.type === 'number' || target.type === 'range' ? Number(target.value) : target.value;
   config[target.dataset.param] = value;
@@ -1396,15 +2190,34 @@ document.querySelector('#app').addEventListener('input', (event) => {
 document.querySelector('#app').addEventListener('change', (event) => {
   const target = event.target;
   if (target.id === 'moduleEnabled') {
+    const clip = getSelectedClip();
+    if (!clip) {
+      renderRightPanel();
+      return;
+    }
     snapshot();
-    getModuleConfig().enabled = target.checked;
+    clip.muted = !target.checked;
     renderTimeline();
     return;
   }
   if (target.dataset?.param) {
+    if (!getSelectedClip()) {
+      setToast('请先点击时间轴中的动作块');
+      renderRightPanel();
+      return;
+    }
     snapshot();
     getModuleConfig()[target.dataset.param] = target.type === 'number' ? Number(target.value) : target.value;
     renderRightPanel();
+  }
+  if (target.dataset?.actionParam) {
+    if (!getSelectedClip()) {
+      setToast('请先点击时间轴中的动作块');
+      renderRightPanel();
+      return;
+    }
+    const value = target.type === 'number' || target.type === 'range' ? Number(target.value) : target.value;
+    setActionParameter(target.dataset.actionParam, value);
   }
   if (target.id === 'notesInput') {
     snapshot();
@@ -1440,7 +2253,8 @@ function findModuleStart(moduleName) {
 
 function inferTrack(moduleName) {
   if (/head|nod|look/i.test(moduleName)) return 'Head';
-  if (/hand|arm|pat|vibration|reach forward|retract|hold still/i.test(moduleName)) return 'Arm / Hand';
+  if (/hand|arm|pat|vibration|reach|side lift|retract|hold still|open arms|close arms/i.test(moduleName)) return 'Arm / Hand';
+  if (/^breathing$/i.test(moduleName)) return 'Chest + Belly';
   if (/breathing light|heartbeat|color|glow/i.test(moduleName)) return 'Chest';
   if (/breathing rise|local warmth|soft rebound/i.test(moduleName)) return 'Belly';
   if (/move|stay|stop/i.test(moduleName)) return 'Body / Wheels';
@@ -1449,11 +2263,25 @@ function inferTrack(moduleName) {
 
 function inferColor(moduleName) {
   const track = inferTrack(moduleName);
-  return { Head: 'blue', 'Arm / Hand': 'green', Chest: 'pink', Belly: 'orange', 'Body / Wheels': 'cyan' }[track] ?? 'blue';
+  return { Head: 'blue', 'Arm / Hand': 'green', 'Chest + Belly': 'orange', Chest: 'pink', Belly: 'orange', 'Body / Wheels': 'cyan' }[track] ?? 'blue';
 }
 
 function inferAction(moduleName) {
+  if (/head up/i.test(moduleName)) return 'headUp';
+  if (/head down/i.test(moduleName)) return 'headDown';
+  if (/head left/i.test(moduleName)) return 'headLeft';
+  if (/head right/i.test(moduleName)) return 'headRight';
   if (/nod|look/i.test(moduleName)) return 'nodHead';
+  if (/soft head inflate/i.test(moduleName)) return 'headInflate';
+  if (/arm inflate/i.test(moduleName)) return 'armInflate';
+  if (/forward \/ backward reach/i.test(moduleName)) return 'handForward';
+  if (/side lift/i.test(moduleName)) return 'raiseArm';
+  if (/hand up/i.test(moduleName)) return 'raiseArm';
+  if (/hand down/i.test(moduleName)) return 'lowerArm';
+  if (/hand forward/i.test(moduleName)) return 'handForward';
+  if (/hand back/i.test(moduleName)) return 'handBack';
+  if (/open arms/i.test(moduleName)) return 'openArms';
+  if (/close arms/i.test(moduleName)) return 'closeArms';
   if (/raise hand/i.test(moduleName)) return 'raiseArm';
   if (/lower hand/i.test(moduleName)) return 'lowerArm';
   if (/reach forward/i.test(moduleName)) return 'reachForward';
@@ -1464,6 +2292,11 @@ function inferAction(moduleName) {
   if (/warm hand/i.test(moduleName)) return 'warmHand';
   if (/hand glow/i.test(moduleName)) return 'glowHand';
   if (/hold still/i.test(moduleName)) return 'holdStill';
+  if (/^breathing$/i.test(moduleName)) return 'bellyBreathing';
+  if (/breathing rise/i.test(moduleName)) return 'bellyBreathing';
+  if (/soft rebound/i.test(moduleName)) return 'bellyRebound';
+  if (/heartbeat light/i.test(moduleName)) return 'chestHeartbeat';
+  if (/breathing light/i.test(moduleName)) return 'chestBreathing';
   return 'idle';
 }
 
@@ -1504,15 +2337,29 @@ function disposeMaterial(material) {
   material?.dispose?.();
 }
 
+function collectMeshes(object) {
+  if (!object) return [];
+  if (object.isMesh) return [object];
+  const meshes = [];
+  object.traverse?.((child) => {
+    if (child.isMesh) meshes.push(child);
+  });
+  return meshes;
+}
+
+function getMaterialMeshes(partKey) {
+  return threeState.materialParts[partKey] ?? collectMeshes(threeState.parts[partKey]);
+}
+
 function applyMaterialToPart(partKey, materialKey) {
   const targets = materialTargets[partKey] ?? [partKey];
   targets.forEach((targetKey) => {
-    const object = threeState.parts[targetKey];
-    if (!object?.isMesh) return;
-    disposeMaterial(object.material);
-    object.material = materialKey === 'default'
-      ? cloneMaterial(threeState.defaultMaterials[targetKey])
-      : materialLibrary[materialKey]();
+    getMaterialMeshes(targetKey).forEach((object, index) => {
+      disposeMaterial(object.material);
+      object.material = materialKey === 'default'
+        ? cloneMaterial(threeState.defaultMaterials[targetKey]?.[index] ?? threeState.defaultMaterials[targetKey]?.[0])
+        : materialLibrary[materialKey]();
+    });
   });
 }
 
@@ -1538,8 +2385,10 @@ function clearPartHighlight() {
     disposeMaterial(overlay.material);
   });
   threeState.highlightOverlays = [];
-  Object.values(threeState.parts).forEach((object) => {
-    if (object?.material) setMaterialHighlight(object.material, false);
+  Object.keys(threeState.materialParts).forEach((partKey) => {
+    getMaterialMeshes(partKey).forEach((object) => {
+      if (object?.material) setMaterialHighlight(object.material, false);
+    });
   });
 }
 
@@ -1566,11 +2415,261 @@ function applyPartHighlight() {
   clearPartHighlight();
   if (!appState.showPartHighlight) return;
   const highlightTargets = materialTargets[moduleToMaterialTarget(getModuleConfig())] ?? [];
-  Object.entries(threeState.parts).forEach(([key, object]) => {
+  Object.entries(threeState.materialParts).forEach(([key, meshes]) => {
     const active = highlightTargets.includes(key);
     if (!active) return;
-    setMaterialHighlight(object.material, true);
-    createHighlightOverlay(object);
+    meshes.forEach((object) => {
+      setMaterialHighlight(object.material, true);
+      createHighlightOverlay(object);
+    });
+  });
+}
+
+function clearPointDeformationVisuals() {
+  threeState.pointDeformationVisuals.forEach((marker) => {
+    marker.parent?.remove(marker);
+    marker.geometry?.dispose?.();
+    marker.material?.dispose?.();
+    marker.children.forEach((child) => {
+      child.geometry?.dispose?.();
+      child.material?.dispose?.();
+    });
+  });
+  threeState.pointDeformationOverlays.forEach((overlay) => {
+    overlay.parent?.remove(overlay);
+    overlay.geometry?.dispose?.();
+    overlay.material?.dispose?.();
+  });
+  threeState.pointDeformationVisuals = [];
+  threeState.pointDeformationOverlays = [];
+}
+
+function makePointMaterial() {
+  return new THREE.MeshPhysicalMaterial({
+    color: '#f6f7f7',
+    emissive: '#f0f1f2',
+    emissiveIntensity: 0.08,
+    roughness: 0.34,
+    metalness: 0,
+    clearcoat: 0.46,
+    clearcoatRoughness: 0.3,
+    depthTest: true,
+    depthWrite: true,
+  });
+}
+
+function makePointHaloMaterial() {
+  return new THREE.MeshBasicMaterial({
+    color: '#a8dcff',
+    transparent: true,
+    opacity: 0.035,
+    depthTest: true,
+    depthWrite: false,
+  });
+}
+
+function pointTargetMeshes(targetKey) {
+  if (targetKey === 'head_shell') return collectMeshes(threeState.parts.head);
+  if (targetKey === 'arm_hand') {
+    return ['leftarm', 'rightarm', 'lefthand', 'righthand'].flatMap((key) => collectMeshes(threeState.parts[key]));
+  }
+  if (targetKey === 'chest_belly') {
+    return ['chest', 'belly'].flatMap((key) => collectMeshes(threeState.deformationParts[key]));
+  }
+  return [];
+}
+
+function pointLayoutsForTarget(targetKey, mesh, meshIndex) {
+  mesh.geometry.computeBoundingBox();
+  const box = mesh.geometry.boundingBox;
+  if (!box) return;
+
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  const rayConfigs = {
+    front: {
+      origin: (item) => new THREE.Vector3(box.max.x + size.x * 0.35, center.y + item.y * size.y, center.z + item.lateral * size.z),
+      direction: new THREE.Vector3(-1, 0, 0),
+    },
+    back: {
+      origin: (item) => new THREE.Vector3(box.min.x - size.x * 0.35, center.y + item.y * size.y, center.z + item.lateral * size.z),
+      direction: new THREE.Vector3(1, 0, 0),
+    },
+    left: {
+      origin: (item) => new THREE.Vector3(center.x + item.lateral * size.x, center.y + item.y * size.y, box.min.z - size.z * 0.35),
+      direction: new THREE.Vector3(0, 0, 1),
+    },
+    right: {
+      origin: (item) => new THREE.Vector3(center.x - item.lateral * size.x, center.y + item.y * size.y, box.max.z + size.z * 0.35),
+      direction: new THREE.Vector3(0, 0, -1),
+    },
+  };
+
+  if (targetKey === 'head_shell') {
+    return {
+      box,
+      size,
+      radius: Math.min(size.y, size.z) * 0.062,
+      rayConfigs,
+      layout: [
+        { side: 'front', y: 0.43, lateral: -0.26, scale: 0.94 },
+        { side: 'front', y: 0.43, lateral: 0, scale: 1 },
+        { side: 'front', y: 0.43, lateral: 0.26, scale: 0.94 },
+        { side: 'front', y: 0.25, lateral: -0.38, scale: 0.88 },
+        { side: 'front', y: 0.25, lateral: 0.38, scale: 0.88 },
+        { side: 'left', y: 0.42, lateral: -0.08, scale: 0.9 },
+        { side: 'left', y: 0.24, lateral: 0.08, scale: 0.84 },
+        { side: 'right', y: 0.42, lateral: -0.08, scale: 0.9 },
+        { side: 'right', y: 0.24, lateral: 0.08, scale: 0.84 },
+        { side: 'back', y: 0.42, lateral: -0.26, scale: 0.9 },
+        { side: 'back', y: 0.42, lateral: 0, scale: 0.96 },
+        { side: 'back', y: 0.42, lateral: 0.26, scale: 0.9 },
+        { side: 'back', y: 0.24, lateral: -0.2, scale: 0.82 },
+        { side: 'back', y: 0.24, lateral: 0.2, scale: 0.82 },
+      ],
+    };
+  }
+
+  if (targetKey === 'arm_hand') {
+    const isHand = /hand|手/.test(mesh.name.toLowerCase());
+    return {
+      box,
+      size,
+      radius: Math.min(size.x, size.y, size.z) * (isHand ? 0.2 : 0.16),
+      rayConfigs,
+      layout: isHand
+        ? [
+            { side: 'front', y: 0.22, lateral: -0.18, scale: 0.88 },
+            { side: 'front', y: 0.22, lateral: 0.18, scale: 0.88 },
+            { side: 'front', y: -0.12, lateral: 0, scale: 0.82 },
+          ]
+        : [
+            { side: 'front', y: 0.36, lateral: 0, scale: 0.86 },
+            { side: 'front', y: 0.12, lateral: 0, scale: 0.9 },
+            { side: 'front', y: -0.12, lateral: 0, scale: 0.9 },
+            { side: 'front', y: -0.36, lateral: 0, scale: 0.82 },
+          ],
+    };
+  }
+
+  const rowOffset = meshIndex % 2 === 0 ? 0 : 0.04;
+  return {
+    box,
+    size,
+    radius: Math.min(size.y, size.z) * 0.065,
+    rayConfigs,
+    layout: [
+      { side: 'front', y: 0.28 + rowOffset, lateral: -0.24, scale: 0.9 },
+      { side: 'front', y: 0.28 + rowOffset, lateral: 0, scale: 0.96 },
+      { side: 'front', y: 0.28 + rowOffset, lateral: 0.24, scale: 0.9 },
+      { side: 'front', y: -0.06 + rowOffset, lateral: -0.16, scale: 0.84 },
+      { side: 'front', y: -0.06 + rowOffset, lateral: 0.16, scale: 0.84 },
+    ],
+  };
+}
+
+function createPointOverlay(mesh, targetKey) {
+  if (!mesh?.geometry) return;
+  const overlay = new THREE.Mesh(
+    mesh.geometry,
+    new THREE.MeshBasicMaterial({
+      color: '#68c9ff',
+      transparent: true,
+      opacity: targetKey === 'head_shell' ? 0.035 : 0.045,
+      side: THREE.BackSide,
+      depthWrite: false,
+    })
+  );
+  overlay.name = `${targetKey}_point_surface_hint`;
+  overlay.scale.setScalar(1.012);
+  overlay.renderOrder = 24;
+  overlay.visible = false;
+  mesh.add(overlay);
+  threeState.pointDeformationOverlays.push(overlay);
+}
+
+function createPointMarkersForMesh(mesh, targetKey, meshIndex) {
+  if (!mesh?.isMesh || !mesh.geometry) return;
+  const configSet = pointLayoutsForTarget(targetKey, mesh, meshIndex);
+  if (!configSet) return;
+
+  mesh.updateWorldMatrix(true, false);
+  createPointOverlay(mesh, targetKey);
+  const raycaster = new THREE.Raycaster();
+  configSet.layout.forEach((item) => {
+    const config = configSet.rayConfigs[item.side];
+    if (!config) return;
+    const localOrigin = config.origin(item);
+    const worldOrigin = localOrigin.clone().applyMatrix4(mesh.matrixWorld);
+    const worldDirection = config.direction.clone().transformDirection(mesh.matrixWorld);
+    raycaster.set(worldOrigin, worldDirection);
+    const hit = raycaster.intersectObject(mesh, false)[0];
+    if (!hit?.face) return;
+
+    const localPoint = mesh.worldToLocal(hit.point.clone());
+    const localNormal = hit.face.normal.clone().normalize();
+    if (localNormal.dot(config.direction) > 0) localNormal.negate();
+    const bubbleRadius = configSet.radius * item.scale;
+
+    const marker = new THREE.Mesh(
+      new THREE.SphereGeometry(bubbleRadius, 24, 16),
+      makePointMaterial()
+    );
+    marker.name = `${targetKey}_point_deformation_bubble`;
+    marker.position.copy(localPoint).addScaledVector(localNormal, -bubbleRadius * 0.64);
+    marker.renderOrder = 32;
+    marker.visible = false;
+    marker.userData.delay = item.delay ?? 0;
+    marker.userData.baseScale = 1;
+    marker.userData.basePosition = marker.position.clone();
+    marker.userData.localNormal = localNormal.clone();
+    marker.userData.bubbleRadius = bubbleRadius;
+    marker.userData.targetKey = targetKey;
+
+    const halo = new THREE.Mesh(
+      new THREE.SphereGeometry(bubbleRadius * 1.1, 20, 12),
+      makePointHaloMaterial()
+    );
+    halo.name = `${targetKey}_point_deformation_halo`;
+    halo.renderOrder = 31;
+    marker.add(halo);
+
+    mesh.add(marker);
+    threeState.pointDeformationVisuals.push(marker);
+  });
+}
+
+function createPointDeformationVisuals() {
+  clearPointDeformationVisuals();
+  deformationTargets.forEach(({ key }) => {
+    pointTargetMeshes(key).forEach((mesh, index) => createPointMarkersForMesh(mesh, key, index));
+  });
+}
+
+function activePointDeformationTarget() {
+  const config = getPanelConfig();
+  return config.deformationPattern === 'point' ? config.deformationTarget : null;
+}
+
+function updatePointDeformationVisuals(time, activeTarget = activePointDeformationTarget()) {
+  threeState.pointDeformationOverlays.forEach((overlay) => {
+    overlay.visible = Boolean(activeTarget && overlay.name.startsWith(activeTarget));
+  });
+  if (!threeState.pointDeformationVisuals.length) return;
+  threeState.pointDeformationVisuals.forEach((marker) => {
+    const visible = marker.userData.targetKey === activeTarget;
+    marker.visible = visible;
+    if (!visible) return;
+    const phase = time * 1.8 + marker.userData.delay;
+    const pulse = 0.5 + Math.sin(phase) * 0.5;
+    const scale = marker.userData.baseScale * (0.9 + pulse * 0.28);
+    marker.scale.setScalar(scale);
+    if (marker.userData.basePosition && marker.userData.localNormal && marker.userData.bubbleRadius) {
+      marker.position.copy(marker.userData.basePosition)
+        .addScaledVector(marker.userData.localNormal, -marker.userData.bubbleRadius * pulse * 0.28);
+    }
+    const halo = marker.children[0];
+    if (halo?.material) halo.material.opacity = 0.025 + pulse * 0.075;
   });
 }
 
@@ -1660,28 +2759,44 @@ function setupRobotViewport() {
         child.material.side = THREE.DoubleSide;
       });
 
-      ['body', 'head', 'leftarm', 'rightarm', 'lefthand', 'righthand'].forEach((key) => {
-        const object = model.getObjectByName(key);
-        if (!object?.isMesh) return;
+      Object.entries(robotNodeBindings).forEach(([key, nodeName]) => {
+        const object = model.getObjectByName(nodeName);
+        if (!object) return;
         threeState.parts[key] = object;
         threeState.baseQuaternions[key] = object.quaternion.clone();
-        disposeMaterial(object.material);
-        object.material = defaultMaterialLibrary[key]();
-        threeState.defaultMaterials[key] = cloneMaterial(object.material);
+        threeState.baseScales[key] = object.scale.clone();
       });
+
+      Object.entries(robotMaterialBindings).forEach(([key, nodeNames]) => {
+        const meshes = nodeNames.flatMap((nodeName) => collectMeshes(model.getObjectByName(nodeName)));
+        threeState.materialParts[key] = meshes;
+        threeState.defaultMaterials[key] = meshes.map((object) => cloneMaterial(object.material));
+      });
+
+      Object.entries(robotDeformationBindings).forEach(([key, nodeName]) => {
+        const object = model.getObjectByName(nodeName);
+        if (!object) return;
+        threeState.deformationParts[key] = object;
+        threeState.baseScales[key] = object.scale.clone();
+      });
+      Object.keys(threeState.deformationParts)
+        .filter((key) => key !== 'chest')
+        .forEach((key) => createInflationOverlays(key));
 
       centerModel(model);
       threeState.loaded = true;
-      status.textContent = 'GLB loaded · 0702 hierarchy ready';
+      status.textContent = '模型已加载 · 层级已就绪';
       status.classList.add('loaded');
+      createPointDeformationVisuals();
       applyAllMaterials();
       applyTimelinePose(appState.currentTime);
+      refreshDeformationBubble();
     },
     (event) => {
-      if (event.total) status.textContent = `Loading robot model... ${Math.round((event.loaded / event.total) * 100)}%`;
+      if (event.total) status.textContent = `正在加载机器人模型... ${Math.round((event.loaded / event.total) * 100)}%`;
     },
     () => {
-      status.textContent = 'Model failed to load';
+      status.textContent = '模型加载失败';
       status.classList.add('error');
     }
   );
@@ -1691,9 +2806,12 @@ function setupRobotViewport() {
   applySceneBackdrop();
 
   function animate() {
-    updatePlayback(performance.now());
+    const now = performance.now();
+    updatePlayback(now);
+    updatePointDeformationVisuals(now / 1000);
     threeState.controls.update();
     threeState.renderer.render(threeState.scene, threeState.camera);
+    updateDeformationLink();
     requestAnimationFrame(animate);
   }
   animate();
@@ -1742,7 +2860,7 @@ function handleViewAction(action) {
     }
     return;
   }
-  setToast('View tool selected');
+  setToast('已选择视图工具');
 }
 
 function applySceneBackdrop() {
@@ -1801,13 +2919,13 @@ function applyCameraView() {
   };
 
   if (appState.cameraView === 'left') {
-    threeState.camera.position.set(-4.65, 1.14, 0.1);
+    threeState.camera.position.set(0.1, 1.14, -4.65);
     lockAroundCurrentView();
     return;
   }
 
   if (appState.cameraView === 'right') {
-    threeState.camera.position.set(4.65, 1.14, 0.1);
+    threeState.camera.position.set(0.1, 1.14, 4.65);
     lockAroundCurrentView();
     return;
   }
@@ -1830,7 +2948,7 @@ function applyCameraView() {
     return;
   }
 
-  threeState.camera.position.set(0, 1.14, 4.68);
+  threeState.camera.position.set(4.68, 1.14, 0.1);
   lockAroundCurrentView();
 }
 
@@ -1856,29 +2974,208 @@ function resetRobotPose() {
     const part = threeState.parts[partKey];
     const base = threeState.baseQuaternions[partKey];
     if (part && base) part.quaternion.copy(base);
+    const baseScale = threeState.baseScales[partKey];
+    if (part && baseScale) part.scale.copy(baseScale);
+  });
+  Object.keys(threeState.deformationParts).forEach((partKey) => {
+    const part = threeState.deformationParts[partKey];
+    const base = threeState.baseScales[partKey];
+    if (part && base) part.scale.copy(base);
+  });
+  Object.values(threeState.inflationOverlays).flat().forEach((overlay) => {
+    overlay.visible = false;
+    overlay.material.opacity = 0;
+    const baseScale = overlay.userData.baseScale;
+    if (baseScale) overlay.scale.copy(baseScale);
   });
 }
 
+function scaleFromBase(partKey, scaleDelta) {
+  const part = threeState.deformationParts[partKey];
+  const base = threeState.baseScales[partKey];
+  if (!part || !base) return;
+  part.scale.set(
+    base.x * scaleDelta.x,
+    base.y * scaleDelta.y,
+    base.z * scaleDelta.z
+  );
+}
+
+function scaleRobotPartFromBase(partKey, scaleDelta) {
+  const part = threeState.parts[partKey];
+  const base = threeState.baseScales[partKey];
+  if (!part || !base) return;
+  part.scale.set(
+    base.x * scaleDelta.x,
+    base.y * scaleDelta.y,
+    base.z * scaleDelta.z
+  );
+}
+
+function createInflationOverlays(partKey) {
+  const object = threeState.deformationParts[partKey];
+  const meshes = collectMeshes(object);
+  threeState.inflationOverlays[partKey] = meshes.map((mesh) => {
+    const overlay = new THREE.Mesh(
+      mesh.geometry,
+      new THREE.MeshBasicMaterial({
+        color: '#86e7ff',
+        transparent: true,
+        opacity: 0,
+        side: THREE.BackSide,
+        depthTest: false,
+        depthWrite: false,
+      })
+    );
+    overlay.name = `${partKey}_inflation_overlay`;
+    overlay.renderOrder = 18;
+    overlay.visible = false;
+    overlay.userData.baseScale = overlay.scale.clone();
+    mesh.add(overlay);
+    return overlay;
+  });
+}
+
+function setInflationOverlay(partKey, value) {
+  const overlays = threeState.inflationOverlays[partKey] ?? [];
+  overlays.forEach((overlay) => {
+    const baseScale = overlay.userData.baseScale ?? new THREE.Vector3(1, 1, 1);
+    const multiplier = partKey === 'chest'
+      ? { x: 0.28, y: 0.08, z: 0.34 }
+      : { x: 0.22, y: 0.06, z: 0.28 };
+    overlay.visible = value > 0.02;
+    overlay.material.opacity = clamp(0.04 + value * 0.18, 0, 0.26);
+    overlay.scale.set(
+      baseScale.x * (1 + value * multiplier.x),
+      baseScale.y * (1 + value * multiplier.y),
+      baseScale.z * (1 + value * multiplier.z)
+    );
+  });
+}
+
+function breathingPulse(progress) {
+  return 0.5 - Math.cos(progress * Math.PI * 2) / 2;
+}
+
+function heartbeatPulse(progress) {
+  const phase = progress % 1;
+  const beat1 = Math.exp(-Math.pow((phase - 0.18) / 0.055, 2));
+  const beat2 = Math.exp(-Math.pow((phase - 0.34) / 0.04, 2)) * 0.58;
+  return clamp(beat1 + beat2, 0, 1);
+}
+
+function reboundPulse(progress) {
+  const attack = Math.sin(clamp(progress * 1.35, 0, 1) * Math.PI);
+  const decay = Math.max(0, 1 - progress);
+  return clamp(attack * decay * 1.2, 0, 1);
+}
+
+function applyInflation(partKey, value) {
+  if (partKey === 'head') {
+    scaleFromBase(partKey, {
+      x: 1 + value * 0.022,
+      y: 1 + value * 0.014,
+      z: 1 + value * 0.022,
+    });
+    setInflationOverlay(partKey, value);
+    return;
+  }
+
+  if (partKey === 'chest') {
+    scaleFromBase(partKey, {
+      x: 1 + value * 0.07,
+      y: 1 + value * 0.015,
+      z: 1 + value * 0.1,
+    });
+    return;
+  }
+
+  if (partKey === 'belly') {
+    scaleFromBase(partKey, {
+      x: 1 + value * 0.055,
+      y: 1 + value * 0.018,
+      z: 1 + value * 0.075,
+    });
+    setInflationOverlay(partKey, value);
+  }
+}
+
+function applyTorsoInflation(value) {
+  const safeValue = clamp(value, 0, 1);
+  scaleFromBase('chest', {
+    x: 1 + safeValue * 0.026,
+    y: 1 + safeValue * 0.006,
+    z: 1 + safeValue * 0.034,
+  });
+  scaleFromBase('belly', {
+    x: 1 + safeValue * 0.055,
+    y: 1 + safeValue * 0.018,
+    z: 1 + safeValue * 0.075,
+  });
+  setInflationOverlay('belly', safeValue);
+}
+
+function applyArmInflation(side, value) {
+  const safeValue = clamp(value, 0, 1);
+  const armScale = {
+    x: 1 + safeValue * 0.04,
+    y: 1 + safeValue * 0.02,
+    z: 1 + safeValue * 0.055,
+  };
+  const handScale = {
+    x: 1 + safeValue * 0.05,
+    y: 1 + safeValue * 0.03,
+    z: 1 + safeValue * 0.05,
+  };
+  const sides = side === 'Left'
+    ? ['left']
+    : side === 'Both'
+      ? ['left', 'right']
+      : ['right'];
+
+  sides.forEach((targetSide) => {
+    scaleRobotPartFromBase(`${targetSide}arm`, armScale);
+    scaleRobotPartFromBase(`${targetSide}hand`, handScale);
+  });
+}
+
+function armSideWeights(side = 'Both') {
+  return {
+    left: side === 'Left' || side === 'Both',
+    right: side === 'Right' || side === 'Both' || !side,
+  };
+}
+
 function getArmLiftPose(time) {
-  const raisedPose = { leftZ: -0.66, rightZ: -0.66 };
+  const sideLiftBase = { leftZ: 0.62, rightZ: -0.62 };
   let pose = { leftZ: 0, rightZ: 0 };
   const armClips = appState.timeline
     .filter((clip) => !isClipMuted(clip) && ['raiseArm', 'lowerArm'].includes(clip.action))
     .sort((a, b) => a.start - b.start);
 
+  const targetForClip = (clip) => {
+    if (clip.action !== 'raiseArm') return { leftZ: 0, rightZ: 0 };
+    const amount = clamp((Number(clip.amount) || 45) / 100, 0, 1);
+    const weights = armSideWeights(clip.side);
+    return {
+      leftZ: weights.left ? sideLiftBase.leftZ * amount : 0,
+      rightZ: weights.right ? sideLiftBase.rightZ * amount : 0,
+    };
+  };
+
   for (const clip of armClips) {
     const start = clip.start;
     const end = clip.start + clip.duration;
     if (time < start) break;
+    const target = targetForClip(clip);
 
     if (time >= end) {
-      pose = clip.action === 'raiseArm' ? { ...raisedPose } : { leftZ: 0, rightZ: 0 };
+      pose = { ...target };
       continue;
     }
 
     const progress = clamp((time - start) / clip.duration, 0, 1);
     const eased = 0.5 - Math.cos(progress * Math.PI) / 2;
-    const target = clip.action === 'raiseArm' ? raisedPose : { leftZ: 0, rightZ: 0 };
     pose = {
       leftZ: pose.leftZ + (target.leftZ - pose.leftZ) * eased,
       rightZ: pose.rightZ + (target.rightZ - pose.rightZ) * eased,
@@ -1890,24 +3187,43 @@ function getArmLiftPose(time) {
 }
 
 function getArmReachAngle(time) {
-  const reachPose = { leftX: 0.9, rightX: -0.9, leftZ: -0.2, rightZ: -0.2 };
-  const retractPose = { leftX: -0.08, rightX: 0.08, leftZ: 0, rightZ: 0 };
-  const backPose = { leftX: -0.34, rightX: 0.34, leftZ: 0.1, rightZ: 0.1 };
+  const reachPose = { leftX: -0.72, rightX: -0.72, leftZ: 0, rightZ: 0 };
+  const backPose = { leftX: 0.34, rightX: 0.34, leftZ: 0, rightZ: 0 };
+  const openPose = { leftX: 0, rightX: 0, leftZ: 0.42, rightZ: -0.42 };
+  const closePose = { leftX: 0, rightX: 0, leftZ: -0.22, rightZ: 0.22 };
+  const retractPose = { leftX: 0, rightX: 0, leftZ: 0, rightZ: 0 };
   let pose = { leftX: 0, rightX: 0, leftZ: 0, rightZ: 0 };
   const reachClips = appState.timeline
-    .filter((clip) => !isClipMuted(clip) && ['reachForward', 'retractHand', 'moveHandBack'].includes(clip.action))
+    .filter((clip) => !isClipMuted(clip) && ['reachForward', 'handForward', 'retractHand', 'handBack', 'moveHandBack', 'openArms', 'closeArms'].includes(clip.action))
     .sort((a, b) => a.start - b.start);
+
+  const applyClipParameters = (target, clip) => {
+    const amount = clamp((Number(clip.amount) || 45) / 100, 0, 1);
+    const directionMultiplier = clip.direction === 'Backward' ? -1 : 1;
+    const weights = armSideWeights(clip.side);
+    return {
+      leftX: weights.left ? target.leftX * amount * directionMultiplier : 0,
+      rightX: weights.right ? target.rightX * amount * directionMultiplier : 0,
+      leftZ: weights.left ? target.leftZ * amount : 0,
+      rightZ: weights.right ? target.rightZ * amount : 0,
+    };
+  };
 
   for (const clip of reachClips) {
     const start = clip.start;
     const end = clip.start + clip.duration;
     if (time < start) break;
 
-    const target = clip.action === 'reachForward'
+    const rawTarget = ['reachForward', 'handForward'].includes(clip.action)
       ? reachPose
-      : clip.action === 'moveHandBack'
+      : ['moveHandBack', 'handBack'].includes(clip.action)
         ? backPose
-        : retractPose;
+        : clip.action === 'openArms'
+          ? openPose
+          : clip.action === 'closeArms'
+            ? closePose
+            : retractPose;
+    const target = applyClipParameters(rawTarget, clip);
 
     if (time >= end) {
       pose = { ...target };
@@ -1953,20 +3269,32 @@ function applyTimelinePose(time) {
   resetRobotPose();
   resetHandSignalEffects();
   const active = appState.timeline.filter((clip) => {
-    if (['raiseArm', 'lowerArm', 'reachForward', 'retractHand', 'moveHandBack'].includes(clip.action)) return false;
+    if (['raiseArm', 'lowerArm', 'reachForward', 'handForward', 'retractHand', 'handBack', 'moveHandBack', 'openArms', 'closeArms'].includes(clip.action)) return false;
     return !isClipMuted(clip) && time >= clip.start && time <= clip.start + clip.duration;
   });
-  let headNod = 0;
+  const headPose = { x: 0, y: 0, z: 0 };
   const armLift = getArmLiftPose(time);
   const armReach = getArmReachAngle(time);
   let leftHand = 0;
   let rightHand = 0;
   let handSignal = null;
+  const inflation = {
+    head: 0,
+    chest: 0,
+    belly: 0,
+    leftArm: 0,
+    rightArm: 0,
+  };
 
   active.forEach((clip) => {
     const progress = clamp((time - clip.start) / clip.duration, 0, 1);
+    const elapsed = Math.max(0, time - clip.start);
     const eased = 0.5 - Math.cos(progress * Math.PI) / 2;
-    if (clip.action === 'nodHead') headNod = -0.16 * Math.sin(progress * Math.PI * 2);
+    if (clip.action === 'nodHead') headPose.x = -0.16 * Math.sin(progress * Math.PI * 2);
+    if (clip.action === 'headUp') headPose.x = -0.24 * eased;
+    if (clip.action === 'headDown') headPose.x = 0.24 * eased;
+    if (clip.action === 'headLeft') headPose.y = 0.34 * eased;
+    if (clip.action === 'headRight') headPose.y = -0.34 * eased;
     if (clip.action === 'patHand') {
       const pat = Math.max(0, Math.sin(progress * Math.PI * 6)) * 0.34;
       leftHand = pat;
@@ -1989,9 +3317,33 @@ function applyTimelinePose(time) {
       leftHand *= 0.25;
       rightHand *= 0.25;
     }
+    if (clip.action === 'headInflate') {
+      inflation.head = Math.max(inflation.head, breathingPulse(progress) * 0.9);
+    }
+    if (clip.action === 'armInflate') {
+      const armValue = breathingPulse(progress);
+      if (clip.side === 'Left' || clip.side === 'Both') inflation.leftArm = Math.max(inflation.leftArm, armValue);
+      if (clip.side === 'Right' || clip.side === 'Both' || !clip.side) inflation.rightArm = Math.max(inflation.rightArm, armValue);
+    }
+    if (clip.action === 'chestBreathing') {
+      inflation.chest = Math.max(inflation.chest, 0.34 + breathingPulse(progress) * 0.66);
+    }
+    if (clip.action === 'chestHeartbeat') {
+      inflation.chest = Math.max(inflation.chest, 0.3 + heartbeatPulse(elapsed * 1.35) * 0.7);
+    }
+    if (clip.action === 'bellyBreathing') {
+      inflation.belly = Math.max(inflation.belly, breathingPulse(progress));
+    }
+    if (clip.action === 'bellyRebound') {
+      inflation.belly = Math.max(inflation.belly, reboundPulse(progress));
+    }
   });
 
-  rotateFromBase('head', [{ axis: 'x', angle: headNod }]);
+  applyInflation('head', inflation.head);
+  applyTorsoInflation(Math.max(inflation.chest, inflation.belly));
+  applyArmInflation('Left', inflation.leftArm);
+  applyArmInflation('Right', inflation.rightArm);
+  rotateFromBase('head', [{ axis: 'x', angle: headPose.x }, { axis: 'y', angle: headPose.y }, { axis: 'z', angle: headPose.z }]);
   rotateFromBase('leftarm', [{ axis: 'x', angle: armReach.leftX }, { axis: 'z', angle: armLift.leftZ + armReach.leftZ }]);
   rotateFromBase('rightarm', [{ axis: 'x', angle: armReach.rightX }, { axis: 'z', angle: armLift.rightZ + armReach.rightZ }]);
   rotateFromBase('lefthand', [{ axis: 'x', angle: leftHand }]);
