@@ -774,8 +774,10 @@ function defaultDeformationPatternForModule(moduleName, pattern = 'none') {
 function setActionParameter(key, value, shouldSnapshot = true) {
   if (shouldSnapshot) snapshot();
   const target = getEditableActionTarget();
-  target[key] = value;
   const moduleName = target.module ?? appState.selectedModule;
+  target[key] = key === 'amount'
+    ? clamp(Number(value) || 0, 0, amountLimitForModule(moduleName).max)
+    : value;
   target.deformationTarget = lockedDeformationTarget(moduleName);
 
   if (key === 'speed') {
@@ -1182,29 +1184,8 @@ function inflationParameterSection(config, { moduleName, showSideControl, target
 }
 
 function motionParameterTemplate(config, { isReachAction, showSideControl, trackName }) {
-  if (trackName === 'Head') {
-    return `
-      <div class="read-only-field">
-        <span>方向</span>
-        <strong>${moduleDirectionLabel()}</strong>
-      </div>
-      ${amountField(config.amount)}
-      ${segmentedField('速度', 'speed', responseSpeedOptions, config.speed)}
-    `;
-  }
-
-  if (trackName === 'Chest + Belly') {
-    return `
-      ${amountField(config.amount)}
-      ${segmentedField('节奏', 'rhythm', responseRhythmOptions, config.rhythm)}
-      ${segmentedField('速度', 'speed', responseSpeedOptions, config.speed)}
-    `;
-  }
-
   return `
-      ${showSideControl ? segmentedField('侧别', 'side', actionSideOptions, config.side) : ''}
-      ${isReachAction ? segmentedField('方向', 'direction', reachDirectionOptions, config.direction) : ''}
-      ${amountField(config.amount)}
+      ${amountField(config.amount, config.module ?? appState.selectedModule)}
       ${segmentedField('速度', 'speed', responseSpeedOptions, config.speed)}
   `;
 }
@@ -1239,13 +1220,27 @@ function segmentedField(label, key, options, value) {
   `;
 }
 
-function amountField(value) {
-  const safeValue = clamp(Number(value) || 0, 0, 100);
+function amountLimitForModule(moduleName = appState.selectedModule) {
+  if (/head|nod|look/i.test(moduleName)) return { max: 28, unit: '°' };
+  if (moduleName === 'Forward / Backward Reach') return { max: 55, unit: '°' };
+  if (moduleName === 'Side Lift') return { max: 65, unit: '°' };
+  return { max: 60, unit: '°' };
+}
+
+function normalizedMotionAmount(target) {
+  const moduleName = target?.module ?? appState.selectedModule;
+  const limit = amountLimitForModule(moduleName);
+  return clamp((Number(target?.amount) || limit.max * 0.7) / limit.max, 0, 1);
+}
+
+function amountField(value, moduleName = appState.selectedModule) {
+  const limit = amountLimitForModule(moduleName);
+  const safeValue = clamp(Number(value) || 0, 0, limit.max);
   return `
     <label class="parameter-row amount-row">
-      <span>幅度</span>
-      <input data-action-param="amount" type="range" min="0" max="100" step="1" value="${safeValue}" />
-      <output>${safeValue}</output>
+      <span>角度</span>
+      <input data-action-param="amount" type="range" min="0" max="${limit.max}" step="1" value="${safeValue}" />
+      <output>${safeValue}${limit.unit}</output>
     </label>
   `;
 }
