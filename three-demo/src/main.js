@@ -1,13 +1,15 @@
 import './styles.css';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
-const STORAGE_KEY = 'gentleRobotStudioState.v3';
+const STORAGE_KEY = 'gentleRobotStudioState.v4';
 const TOTAL_DURATION = 24;
 const timelineTracks = [
   { name: 'Head', icon: '☻' },
-  { name: 'Arm / Hand', icon: '✋' },
+  { name: 'Arm', icon: '↗' },
+  { name: 'Hand', icon: '✋' },
   { name: 'Chest + Belly', icon: '◒' },
 ];
 
@@ -18,12 +20,20 @@ const behaviorModuleGroups = [
     items: ['Head up', 'Head down', 'Head left', 'Head right', 'Soft head inflate'],
   },
   {
-    group: 'Arm / Hand',
-    icon: '✋',
+    group: 'Arm',
+    icon: '↗',
     items: [
       'Forward / Backward Reach',
       'Side Lift',
       'Arm Inflate',
+    ],
+  },
+  {
+    group: 'Hand',
+    icon: '✋',
+    items: [
+      'Gentle pat',
+      'Hand Inflate',
     ],
   },
   {
@@ -98,6 +108,8 @@ const materialLabels = {
 const groupLabels = {
   Head: '头部',
   'Arm / Hand': '手臂/手',
+  Arm: '手臂',
+  Hand: '手部',
   'Chest + Belly': '胸腹',
   Chest: '胸部',
   Belly: '腹部',
@@ -110,9 +122,10 @@ const moduleLabels = {
   'Head left': '左转',
   'Head right': '右转',
   'Soft head inflate': '头部膨胀',
-  'Forward / Backward Reach': '侧向抬手',
-  'Side Lift': '前后伸手',
+  'Forward / Backward Reach': '前后伸手',
+  'Side Lift': '侧向抬手',
   'Arm Inflate': '手臂膨胀',
+  'Hand Inflate': '手部膨胀',
   Breathing: '胸腹呼吸',
   'Nod gently': '轻点头',
   'Look down': '低头',
@@ -123,11 +136,11 @@ const moduleLabels = {
   'Hand down': '放下手',
   'Open arms': '张开双臂',
   'Close arms': '合拢双臂',
-  'Gentle pat': '轻拍',
+  'Gentle pat': '手掌轻拍',
   'Hand vibration': '手部轻震',
   'Warm hand': '手部升温',
   'Hand glow': '手部发光',
-  'Hold still': '停留',
+  'Hold still': '手掌停留',
 };
 
 const optionLabels = {
@@ -190,9 +203,12 @@ const materialSwatches = {
 };
 
 const moduleActionIcons = {
-  'Forward / Backward Reach': '↗',
-  'Side Lift': '↔',
+  'Forward / Backward Reach': '↔',
+  'Side Lift': '↗',
   'Arm Inflate': '◒',
+  'Gentle pat': '↶',
+  'Hold still': '•',
+  'Hand Inflate': '◒',
   Breathing: '◒',
   'Head up': '↑',
   'Head down': '↓',
@@ -268,9 +284,9 @@ const moduleResponseMap = {
   'Look down': { targetPart: 'head', targetLabel: 'Head', side: 'Center', deformationType: 'none', deformationTarget: 'head_shell', category: 'Head motion' },
   'Look up': { targetPart: 'head', targetLabel: 'Head', side: 'Center', deformationType: 'none', deformationTarget: 'head_shell', category: 'Head motion' },
   'Soft head inflate': { targetPart: 'head', targetLabel: 'Head', side: 'Center', deformationType: 'inflate', deformationTarget: 'head_shell', category: 'Material deformation' },
-  'Forward / Backward Reach': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Right', deformationType: 'none', deformationTarget: 'arm_hand', category: 'Directional arm motion' },
-  'Side Lift': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Right', direction: 'Forward', deformationType: 'none', deformationTarget: 'arm_hand', category: 'Directional arm motion' },
-  'Arm Inflate': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Right', deformationType: 'inflate', deformationTarget: 'arm_hand', category: 'Arm deformation' },
+  'Forward / Backward Reach': { targetPart: 'botharms', targetLabel: 'Arm', side: 'Right', direction: 'Forward', deformationType: 'none', deformationTarget: 'arm_hand', category: 'Directional arm motion' },
+  'Side Lift': { targetPart: 'botharms', targetLabel: 'Arm', side: 'Right', deformationType: 'none', deformationTarget: 'arm_hand', category: 'Directional arm motion' },
+  'Arm Inflate': { targetPart: 'botharms', targetLabel: 'Arm', side: 'Right', deformationType: 'inflate', deformationTarget: 'arm_hand', category: 'Arm deformation' },
   Breathing: { targetPart: 'body', targetLabel: 'Chest + Belly', side: 'Center', deformationType: 'inflate', deformationTarget: 'chest_belly', category: 'Breathing deformation' },
   'Hand forward': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Both', deformationType: 'none', category: 'Motion' },
   'Hand back': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Both', deformationType: 'none', category: 'Motion' },
@@ -283,11 +299,12 @@ const moduleResponseMap = {
   'Reach forward': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Both', deformationType: 'none', category: 'Motion' },
   'Retract hand': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Both', deformationType: 'none', category: 'Motion' },
   'Move hand back': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Both', deformationType: 'none', category: 'Motion' },
-  'Gentle pat': { targetPart: 'bothhands', targetLabel: 'Hand', side: 'Both', deformationType: 'rebound', category: 'Tactile rhythm' },
+  'Gentle pat': { targetPart: 'bothhands', targetLabel: 'Hand', side: 'Right', deformationType: 'none', deformationTarget: 'arm_hand', category: 'Hand motion' },
   'Hand vibration': { targetPart: 'bothhands', targetLabel: 'Hand', side: 'Both', deformationType: 'wave', category: 'Tactile rhythm' },
   'Warm hand': { targetPart: 'bothhands', targetLabel: 'Hand', side: 'Both', deformationType: 'surface', category: 'Thermal surface' },
   'Hand glow': { targetPart: 'bothhands', targetLabel: 'Hand', side: 'Both', deformationType: 'surface', category: 'Light response' },
-  'Hold still': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Both', deformationType: 'none', category: 'Motion hold' },
+  'Hold still': { targetPart: 'bothhands', targetLabel: 'Hand', side: 'Right', deformationType: 'none', deformationTarget: 'arm_hand', category: 'Hand motion' },
+  'Hand Inflate': { targetPart: 'bothhands', targetLabel: 'Hand', side: 'Right', deformationType: 'inflate', deformationTarget: 'arm_hand', category: 'Hand deformation' },
   'Breathing light': { targetPart: 'body', targetLabel: 'Chest', side: 'Center', deformationType: 'inflate', category: 'Light response' },
   'Heartbeat light': { targetPart: 'body', targetLabel: 'Chest', side: 'Center', deformationType: 'inflate', category: 'Light response' },
   'Color change': { targetPart: 'body', targetLabel: 'Chest', side: 'Center', deformationType: 'surface', category: 'Surface display' },
@@ -351,6 +368,8 @@ const moduleDefaults = {
   touchArea: 'Arm',
   variableMode: 'distance',
   motionMode: 'sync',
+  magLevel: 'wide',
+  angle: 0,
 };
 
 const defaultState = {
@@ -492,7 +511,7 @@ function normalizeTimelineClip(clip) {
     duration,
     side: clip.side ?? staticConfig.side,
     direction: clip.direction ?? staticConfig.direction,
-    amount: clip.amount ?? staticConfig.amount,
+    amount: safeParameterAmountForModule(clip.module, clip.amount ?? staticConfig.amount),
     speed: clip.speed ?? speedForDuration(duration),
     rhythm: clip.rhythm ?? staticConfig.rhythm,
     intensity: clip.intensity ?? staticConfig.intensity,
@@ -501,6 +520,8 @@ function normalizeTimelineClip(clip) {
     deformationTarget: lockedDeformationTarget(clip.module),
     variableMode: clip.variableMode ?? staticConfig.variableMode,
     motionMode: clip.motionMode ?? staticConfig.motionMode,
+    magLevel: clip.magLevel ?? staticConfig.magLevel,
+    angle: clip.angle ?? staticConfig.angle,
   };
 }
 
@@ -532,6 +553,7 @@ function restore(serialized) {
   const restored = JSON.parse(serialized);
   Object.assign(appState, structuredClone(defaultState), restored);
   appState.playing = false;
+  appState.showUserReference = false; // 用户参考开关已从界面移除, 始终保持关闭
   renderAll();
   applySceneBackdrop();
   applyAllMaterials();
@@ -566,17 +588,18 @@ function getModuleConfig(moduleName = appState.selectedModule) {
 }
 
 function getModuleResponseMapping(moduleName = appState.selectedModule) {
+  const track = inferTrack(moduleName);
   return moduleResponseMap[moduleName] ?? {
-    targetPart: inferTrack(moduleName) === 'Head' ? 'head' : 'body',
-    targetLabel: inferTrack(moduleName),
-    side: inferTrack(moduleName) === 'Arm / Hand' ? 'Both' : 'Center',
+    targetPart: track === 'Head' ? 'head' : track === 'Hand' ? 'bothhands' : track === 'Arm' ? 'botharms' : 'body',
+    targetLabel: track,
+    side: ['Arm', 'Hand', 'Arm / Hand'].includes(track) ? 'Both' : 'Center',
     deformationType: 'none',
-    deformationTarget: inferTrack(moduleName) === 'Head'
+    deformationTarget: track === 'Head'
       ? 'head_shell'
-      : inferTrack(moduleName) === 'Arm / Hand'
+      : ['Arm', 'Hand', 'Arm / Hand'].includes(track)
         ? 'arm_hand'
         : 'chest_belly',
-    category: inferTrack(moduleName),
+    category: track,
   };
 }
 
@@ -603,7 +626,8 @@ function moduleDirectionLabel(moduleName = appState.selectedModule) {
   if (name.includes('down')) return '向下';
   if (name.includes('left')) return '向左';
   if (name.includes('right')) return '向右';
-  if (moduleName === 'Forward / Backward Reach') return '侧向抬起';
+  if (moduleName === 'Forward / Backward Reach') return '前后方向';
+  if (moduleName === 'Side Lift') return '侧向抬起';
   if (moduleName === 'Breathing') return '呼吸起伏';
   return '前后方向';
 }
@@ -680,13 +704,17 @@ function createTimelineClip(moduleName, startTime = appState.currentTime, trackN
     droppedTrack: trackName,
     side: config.side,
     direction: config.direction,
-    amount: config.amount,
+    amount: safeParameterAmountForModule(moduleName, config.amount),
     speed: speedForDuration(duration),
     rhythm: config.rhythm,
     intensity: config.intensity,
     coverage: config.coverage,
-    deformationPattern: defaultDeformationPatternForModule(moduleName, config.deformationPattern),
+    deformationPattern: isInflationModule(moduleName) ? 'surface' : defaultDeformationPatternForModule(moduleName, config.deformationPattern),
     deformationTarget: lockedDeformationTarget(moduleName),
+    variableMode: config.variableMode,
+    motionMode: config.motionMode,
+    magLevel: config.magLevel,
+    angle: config.angle,
   };
 }
 
@@ -753,6 +781,8 @@ function getPanelConfig() {
     deformationTarget: lockedDeformationTarget(clip.module),
     variableMode: clip.variableMode ?? config.variableMode,
     motionMode: clip.motionMode ?? config.motionMode,
+    magLevel: clip.magLevel ?? config.magLevel,
+    angle: clip.angle ?? config.angle,
   };
 }
 
@@ -763,7 +793,7 @@ function getEditableActionTarget() {
 }
 
 function isInflationModule(moduleName) {
-  return ['Soft head inflate', 'Arm Inflate', 'Breathing'].includes(moduleName);
+  return ['Soft head inflate', 'Arm Inflate', 'Hand Inflate', 'Breathing'].includes(moduleName);
 }
 
 function defaultDeformationPatternForModule(moduleName, pattern = 'none') {
@@ -771,13 +801,27 @@ function defaultDeformationPatternForModule(moduleName, pattern = 'none') {
   return pattern ?? 'none';
 }
 
+function deformationPatternLabel(pattern) {
+  return deformationPatterns.find((item) => item.key === pattern)?.label ?? pattern ?? '';
+}
+
+function timelineClipLabel(clip) {
+  const baseLabel = displayModuleName(clip.module);
+  if (!isInflationModule(clip.module)) return baseLabel;
+  const pattern = defaultDeformationPatternForModule(clip.module, clip.deformationPattern);
+  return `${baseLabel} · ${deformationPatternLabel(pattern)}`;
+}
+
+function isSurfaceDeformationClip(clip) {
+  return isInflationModule(clip.module)
+    && defaultDeformationPatternForModule(clip.module, clip.deformationPattern) === 'surface';
+}
+
 function setActionParameter(key, value, shouldSnapshot = true) {
   if (shouldSnapshot) snapshot();
   const target = getEditableActionTarget();
   const moduleName = target.module ?? appState.selectedModule;
-  target[key] = key === 'amount'
-    ? clamp(Number(value) || 0, 0, amountLimitForModule(moduleName).max)
-    : value;
+  target[key] = key === 'amount' ? safeParameterAmountForModule(moduleName, value) : value;
   target.deformationTarget = lockedDeformationTarget(moduleName);
 
   if (key === 'speed') {
@@ -791,6 +835,14 @@ function setActionParameter(key, value, shouldSnapshot = true) {
   if (key === 'deformationPattern') {
     const coverageOptions = coverageOptionsForPattern(value);
     target.coverage = coverageOptions.includes(target.coverage) ? target.coverage : coverageOptions[0];
+  }
+
+  if (key === 'variableMode') {
+    target.magLevel = sanitizeMagLevel(value, target.magLevel);
+  }
+
+  if (key === 'angle') {
+    target.angle = Number(value);
   }
 
   if (target.id) {
@@ -869,7 +921,6 @@ function appTemplate() {
       <aside class="left-panel">
         <div class="panel-title">
           <h2>行为模块</h2>
-          <button id="addModuleButton" title="添加自定义模块">＋</button>
         </div>
         <div class="module-groups" id="moduleGroups"></div>
       </aside>
@@ -893,16 +944,7 @@ function robotPreviewTemplate() {
       <div class="viewport-tools top">
         <button data-view-action="toggle-grid" class="${appState.showGrid ? 'active' : ''}" title="网格" aria-label="切换网格">▦</button>
         <button data-view-action="toggle-highlight" class="${appState.showPartHighlight ? 'active' : ''}" title="部位高亮" aria-label="切换部位高亮">⬡</button>
-        <button data-view-action="toggle-user-reference" class="${appState.showUserReference ? 'active' : ''}" title="用户参考" aria-label="切换用户参考">♙</button>
         <button data-view-action="fullscreen" title="全屏预览" aria-label="全屏预览">⤢</button>
-      </div>
-      <div class="viewport-tools left">
-        <button data-view-action="select" class="active">↖</button>
-        <button data-view-action="pan">✥</button>
-        <button data-view-action="reset-camera">⟳</button>
-        <button data-view-action="fullscreen">⛶</button>
-        <button data-view-action="toggle-grid">▣</button>
-        <button data-view-action="more">…</button>
       </div>
       <div class="grid-floor"></div>
       <div class="axis-widget">
@@ -921,9 +963,27 @@ function robotPreviewTemplate() {
       </svg>
       <div class="deform-bubble anchor-head" id="deformBubble" hidden>
         <div class="deform-bubble-ring">
-          <img id="deformBubbleImg" alt="形变视频预览" />
+          <video id="deformBubbleVideo" muted loop playsinline preload="metadata" aria-label="形变视频预览"></video>
+          <div class="deform-bubble-placeholder" id="deformBubblePlaceholder">
+            <strong>视频待放入</strong>
+            <small id="deformBubblePath"></small>
+          </div>
+        </div>
+        <div class="deform-bubble-tools">
+          <button type="button" id="deformZoomOut" aria-label="缩小视频" title="缩小">−</button>
+          <button type="button" id="deformZoomIn" aria-label="放大视频" title="放大">＋</button>
+          <button type="button" id="deformExpand" aria-label="全屏查看" title="全屏查看">⤢</button>
         </div>
         <div class="deform-bubble-caption" id="deformBubbleCaption"></div>
+      </div>
+      <div class="deform-lightbox" id="deformLightbox" hidden>
+        <video id="deformLightboxVideo" muted loop playsinline aria-label="形变视频全屏预览"></video>
+        <div class="deform-lightbox-caption" id="deformLightboxCaption"></div>
+        <div class="deform-lightbox-tools">
+          <button type="button" id="deformLbZoomOut" aria-label="缩小视频" title="缩小">−</button>
+          <button type="button" id="deformLbZoomIn" aria-label="放大视频" title="放大">＋</button>
+        </div>
+        <button type="button" class="deform-lightbox-close" id="deformLightboxClose" aria-label="关闭全屏预览">✕</button>
       </div>
       <div class="viewport-status" id="viewportStatus">正在加载机器人模型...</div>
     </div>
@@ -993,14 +1053,10 @@ function renderTopbar() {
           .join('')}
       </div>
     </div>
-    <button class="save-button" id="saveButton" title="保存到浏览器">▣</button>
     <div class="top-spacer"></div>
-    <div class="connection"><i></i> 机器人已连接</div>
     <button class="icon-button" id="undoButton" ${history.length ? '' : 'disabled'}>↶</button>
     <button class="icon-button" id="redoButton" ${future.length ? '' : 'disabled'}>↷</button>
-    <button class="preview-button" id="previewButton">▷ 预览</button>
     <button class="deploy-button" id="deployButton">导出 <span>⌄</span></button>
-    <button class="icon-button" id="moreButton">⋮</button>
   `;
 }
 
@@ -1050,9 +1106,8 @@ function renderRightPanel() {
   const config = getPanelConfig();
   const moduleName = selectedClip.module;
   const isInflationAction = isInflationModule(moduleName);
-  const isReachAction = moduleName === 'Side Lift';
   const trackName = selectedClip.track ?? inferTrack(moduleName);
-  const showSideControl = trackName === 'Arm / Hand';
+  const showSideControl = ['Arm', 'Hand', 'Arm / Hand'].includes(trackName);
   const targetLabel = deformationTargetLabel(config.deformationTarget);
 
   document.querySelector('#rightPanel').innerHTML = `
@@ -1062,10 +1117,6 @@ function renderRightPanel() {
         <h2>动作检查器</h2>
         <p>正在编辑时间轴动作</p>
       </div>
-      <label class="switch">
-        <input id="moduleEnabled" type="checkbox" ${config.enabled ? 'checked' : ''} />
-        <span></span>
-      </label>
     </header>
     <section class="inspector-section selected-action-section">
       <div class="section-row">
@@ -1084,7 +1135,7 @@ function renderRightPanel() {
     </section>
     ${isInflationAction
       ? inflationParameterSection(config, { moduleName, showSideControl, targetLabel })
-      : motionParameterSection(config, { isReachAction, showSideControl, trackName })}
+      : motionParameterSection(config, { moduleName, trackName })}
   `;
   refreshDeformationBubble();
 }
@@ -1153,6 +1204,59 @@ function motionModeField(config) {
   ], config.motionMode);
 }
 
+const MAG_LEVEL_OPTIONS = {
+  point: {
+    distance: [
+      { value: 'wide', label: '宽距' },
+      { value: 'dense', label: '密距' },
+    ],
+    radius: [
+      { value: 'big', label: '大半径' },
+      { value: 'small', label: '小半径' },
+    ],
+  },
+  line: {
+    distance: [
+      { value: 'wide', label: '宽距' },
+      { value: 'dense', label: '密距' },
+    ],
+    radius: [
+      { value: 'big', label: '粗' },
+      { value: 'small', label: '细' },
+    ],
+  },
+};
+const MAG_LEVEL_DEFAULT = { distance: 'wide', radius: 'big' };
+
+function sanitizeMagLevel(variableMode, magLevel) {
+  const mode = variableMode === 'radius' ? 'radius' : 'distance';
+  const allowed = ['wide', 'dense', 'big', 'small'];
+  const modeAllowed = mode === 'distance' ? ['wide', 'dense'] : ['big', 'small'];
+  return allowed.includes(magLevel) && modeAllowed.includes(magLevel)
+    ? magLevel
+    : MAG_LEVEL_DEFAULT[mode];
+}
+
+function magLevelLabel(pattern, variableMode, magLevel) {
+  const pat = pattern === 'line' ? 'line' : 'point';
+  const mode = variableMode === 'radius' ? 'radius' : 'distance';
+  const level = sanitizeMagLevel(mode, magLevel);
+  return MAG_LEVEL_OPTIONS[pat][mode].find((option) => option.value === level)?.label ?? level;
+}
+
+function magLevelField(config) {
+  const pat = config.deformationPattern === 'line' ? 'line' : 'point';
+  const mode = config.variableMode === 'radius' ? 'radius' : 'distance';
+  return labeledSegmentedField('档位', 'magLevel', MAG_LEVEL_OPTIONS[pat][mode],
+    sanitizeMagLevel(mode, config.magLevel));
+}
+
+const ANGLE_OPTIONS = [0, 45, 90, 135].map((v) => ({ value: v, label: `${v}°` }));
+
+function angleField(config) {
+  return labeledSegmentedField('角度', 'angle', ANGLE_OPTIONS, Number(config.angle ?? 0));
+}
+
 function inflationParameterSection(config, { moduleName, showSideControl, targetLabel }) {
   const patternChoices = deformationPatterns.filter((item) => item.key !== 'none');
   const hasPointLinePreview = ['point', 'line'].includes(config.deformationPattern);
@@ -1172,22 +1276,253 @@ function inflationParameterSection(config, { moduleName, showSideControl, target
       ${showSideControl ? segmentedField('侧别', 'side', actionSideOptions, config.side) : ''}
       ${choiceGrid('形变方式', patternChoices, config.deformationPattern, 'deformation-pattern')}
       ${hasPointLinePreview ? variableModeField(config) : ''}
+      ${hasPointLinePreview ? magLevelField(config) : ''}
       ${hasPointLinePreview ? motionModeField(config) : ''}
-      ${deformationLivePreviewTemplate(config)}
-      ${amountField(config.amount)}
-      ${segmentedField('节奏', 'rhythm', responseRhythmOptions, config.rhythm)}
-      ${segmentedField('速度', 'speed', responseSpeedOptions, config.speed)}
-      ${intensityField(config.intensity)}
-      <p class="section-hint">${displayModuleName(moduleName)}只调整材料/表面形变，不显示额外动作参数。面表示整体膨胀/呼吸，点和线用于局部形变提示。</p>
+      ${hasPointLinePreview ? angleField(config) : ''}
     </section>
   `;
 }
 
-function motionParameterTemplate(config, { isReachAction, showSideControl, trackName }) {
+function motionParameterTemplate(config, { moduleName }) {
+  const showReachDirection = moduleName === 'Forward / Backward Reach';
+  const showMotionSide = ['Side Lift', 'Gentle pat'].includes(moduleName);
   return `
+      ${showReachDirection ? segmentedField('方向', 'direction', ['Forward', 'Backward'], config.direction ?? 'Forward') : ''}
+      ${showMotionSide ? segmentedField('侧别', 'side', actionSideOptions, config.side ?? 'Right') : ''}
       ${amountField(config.amount, config.module ?? appState.selectedModule)}
       ${segmentedField('速度', 'speed', responseSpeedOptions, config.speed)}
   `;
+}
+
+function anglePreviewTemplate(config, moduleName = appState.selectedModule) {
+  const limit = amountLimitForModule(moduleName);
+  const safeValue = safeAmountForModule(moduleName, config.amount);
+  return `
+    <section class="angle-preview-card">
+      <div class="angle-preview-head">
+        <div>
+          <small>角度预览</small>
+          <strong>${anglePreviewTitle(moduleName, config)}</strong>
+        </div>
+        <span>${safeValue}${limit.unit}</span>
+      </div>
+      <div class="angle-preview-stage" aria-hidden="true">
+        ${anglePreviewSvg(moduleName, config, safeValue, limit.max)}
+      </div>
+      ${amountField(config.amount, moduleName)}
+    </section>
+  `;
+}
+
+function anglePreviewTitle(moduleName, config) {
+  if (moduleName === 'Forward / Backward Reach') return `前后伸手 · ${displayOption(config.direction ?? 'Forward')}`;
+  if (moduleName === 'Side Lift') return '侧向抬手';
+  if (moduleName === 'Gentle pat') return '手掌轻拍';
+  if (['Head up', 'Head down', 'Head left', 'Head right'].includes(moduleName)) return '头部方向';
+  return displayModuleName(moduleName);
+}
+
+function anglePreviewSvg(moduleName, config, amount, max) {
+  if (moduleName === 'Forward / Backward Reach') return reachAnglePreviewSvg(config, amount, max);
+  if (moduleName === 'Side Lift') return sideLiftAnglePreviewSvg(amount, max);
+  if (moduleName === 'Gentle pat') return patAnglePreviewSvg(amount, max);
+  if (['Head up', 'Head down', 'Head left', 'Head right'].includes(moduleName)) {
+    return headAnglePreviewSvg(moduleName, amount, max);
+  }
+  return genericAnglePreviewSvg(amount, max);
+}
+
+function headAnglePreviewSvg(moduleName, amount, max) {
+  const progress = clamp(amount / max, 0, 1);
+  const directionMap = {
+    'Head up': { active: 'up', dotDeg: 38, arrowDeg: -35, start: 5, end: 42 },
+    'Head down': { active: 'down', dotDeg: 142, arrowDeg: 130, start: 105, end: 142 },
+    'Head left': { active: 'left', dotDeg: 308, arrowDeg: -150, start: 345, end: 308 },
+    'Head right': { active: 'right', dotDeg: 52, arrowDeg: 30, start: 15, end: 52 },
+  };
+  const meta = directionMap[moduleName] ?? directionMap['Head up'];
+  const arcEnd = meta.start + (meta.end - meta.start) * progress;
+  const dot = polarPoint(150, 82, 56, arcEnd);
+  return `
+    <svg class="angle-preview-svg" viewBox="0 0 300 180" role="img" aria-label="头部角度预览">
+      <circle class="angle-orbit" cx="150" cy="82" r="56" />
+      ${directionChipSvg(150, 18, '↑', meta.active === 'up')}
+      ${directionChipSvg(214, 82, '→', meta.active === 'right')}
+      ${directionChipSvg(150, 146, '↓', meta.active === 'down')}
+      ${directionChipSvg(86, 82, '←', meta.active === 'left')}
+      <g class="angle-robot-head">
+        <rect class="angle-soft-fill" x="108" y="56" width="84" height="58" rx="28" />
+        <rect class="angle-face" x="122" y="72" width="56" height="25" rx="11" />
+        <circle class="angle-eye" cx="139" cy="84" r="4" />
+        <circle class="angle-eye" cx="162" cy="84" r="4" />
+      </g>
+      <path class="angle-arc" d="${arcPath(150, 82, 63, meta.start, arcEnd)}" />
+      <circle class="angle-pivot" cx="${dot.x}" cy="${dot.y}" r="5" />
+      <path class="angle-arrow" d="${arrowHead(dot.x + 12, dot.y - 3, meta.arrowDeg)}" />
+    </svg>
+  `;
+}
+
+function reachAnglePreviewSvg(config, amount, max) {
+  const progress = clamp(amount / max, 0, 1);
+  const isBackward = (config.direction ?? 'Forward') === 'Backward';
+  const startDeg = isBackward ? 46 : 134;
+  const endDeg = isBackward ? 92 : 62;
+  const currentDeg = startDeg + (endDeg - startDeg) * progress;
+  const pivot = { x: 91, y: 94 };
+  const ghost = armPoseFromAngle(pivot.x, pivot.y, 76, startDeg);
+  const current = armPoseFromAngle(pivot.x, pivot.y, 90, currentDeg);
+  const arrow = polarPoint(pivot.x, pivot.y, 78, currentDeg);
+  return `
+    <svg class="angle-preview-svg" viewBox="0 0 300 180" role="img" aria-label="前后伸手角度预览">
+      <line class="angle-muted-line" x1="52" y1="94" x2="248" y2="94" />
+      <g class="angle-side-robot">
+        <rect class="angle-body" x="48" y="72" width="42" height="76" rx="12" />
+        <circle class="angle-head" cx="68" cy="46" r="23" />
+        <rect class="angle-face-small" x="80" y="39" width="10" height="16" rx="5" />
+        <circle class="angle-joint" cx="${pivot.x}" cy="${pivot.y}" r="14" />
+      </g>
+      <path class="angle-arm-ghost" d="M ${pivot.x} ${pivot.y} L ${ghost.elbow.x} ${ghost.elbow.y} L ${ghost.hand.x} ${ghost.hand.y}" />
+      ${smallHandSvg(ghost.hand.x, ghost.hand.y, startDeg, true)}
+      <path class="angle-arm-current" d="M ${pivot.x} ${pivot.y} L ${current.elbow.x} ${current.elbow.y} L ${current.hand.x} ${current.hand.y}" />
+      ${smallHandSvg(current.hand.x, current.hand.y, currentDeg)}
+      <circle class="angle-pivot" cx="${pivot.x}" cy="${pivot.y}" r="5.5" />
+      <path class="angle-arc" d="${arcPath(pivot.x, pivot.y, 78, startDeg, currentDeg)}" />
+      <path class="angle-arrow" d="${arrowHead(arrow.x, arrow.y, isBackward ? 140 : -35)}" />
+    </svg>
+  `;
+}
+
+function sideLiftAnglePreviewSvg(amount, max) {
+  const progress = clamp(amount / max, 0, 1);
+  const startDeg = 162;
+  const currentDeg = 162 - 92 * progress;
+  const pivot = { x: 132, y: 98 };
+  const ghost = armPoseFromAngle(pivot.x, pivot.y, 62, startDeg);
+  const current = armPoseFromAngle(pivot.x, pivot.y, 82, currentDeg);
+  const arrow = polarPoint(pivot.x, pivot.y, 76, currentDeg);
+  return `
+    <svg class="angle-preview-svg" viewBox="0 0 300 180" role="img" aria-label="侧向抬手角度预览">
+      <line class="angle-muted-line" x1="54" y1="98" x2="236" y2="98" />
+      <g class="angle-front-robot">
+        <rect class="angle-body" x="80" y="74" width="52" height="76" rx="17" />
+        <rect class="angle-head" x="85" y="32" width="42" height="38" rx="20" />
+        <rect class="angle-face-small" x="96" y="44" width="21" height="12" rx="6" />
+        <path class="angle-rest-arm" d="M 78 100 L 60 140" />
+      </g>
+      <path class="angle-arm-ghost" d="M ${pivot.x} ${pivot.y} L ${ghost.elbow.x} ${ghost.elbow.y} L ${ghost.hand.x} ${ghost.hand.y}" />
+      ${smallHandSvg(ghost.hand.x, ghost.hand.y, startDeg, true)}
+      <path class="angle-arm-current" d="M ${pivot.x} ${pivot.y} L ${current.elbow.x} ${current.elbow.y} L ${current.hand.x} ${current.hand.y}" />
+      ${smallHandSvg(current.hand.x, current.hand.y, currentDeg)}
+      <circle class="angle-pivot" cx="${pivot.x}" cy="${pivot.y}" r="5.5" />
+      <path class="angle-arc" d="${arcPath(pivot.x, pivot.y, 78, startDeg, currentDeg)}" />
+      <path class="angle-arrow" d="${arrowHead(arrow.x, arrow.y, -35)}" />
+    </svg>
+  `;
+}
+
+function patAnglePreviewSvg(amount, max) {
+  const progress = clamp(amount / max, 0, 1);
+  const pivot = { x: 78, y: 70 };
+  const rotation = 3 + 28 * progress;
+  const arcEnd = 50 + 58 * progress;
+  const arrow = polarPoint(pivot.x, pivot.y, 60, arcEnd);
+  return `
+    <svg class="angle-preview-svg" viewBox="0 0 300 180" role="img" aria-label="手掌轻拍角度预览">
+      <ellipse class="angle-touch-shadow" cx="174" cy="146" rx="82" ry="16" />
+      <g class="angle-arm-base">
+        <path d="M 6 70 L 68 70" />
+        <circle cx="${pivot.x}" cy="${pivot.y}" r="12" />
+      </g>
+      <g class="angle-hand-ghost" transform="rotate(-5 ${pivot.x} ${pivot.y})">
+        ${palmDownHandSvg(pivot.x + 6, 54)}
+      </g>
+      <g class="angle-hand-current" transform="rotate(${round(rotation)} ${pivot.x} ${pivot.y})">
+        ${palmDownHandSvg(pivot.x + 4, 88)}
+      </g>
+      <circle class="angle-pivot" cx="${pivot.x}" cy="${pivot.y}" r="6" />
+      <path class="angle-arc angle-arc-bold" d="${arcPath(pivot.x, pivot.y, 60, 48, arcEnd)}" />
+      <path class="angle-arrow" d="${arrowHead(arrow.x, arrow.y, 52)}" />
+    </svg>
+  `;
+}
+
+function genericAnglePreviewSvg(amount, max) {
+  const progress = clamp(amount / max, 0, 1);
+  const end = 74 + progress * 76;
+  return `
+    <svg class="angle-preview-svg" viewBox="0 0 260 160" role="img" aria-label="角度预览">
+      <line class="angle-muted-line" x1="64" y1="102" x2="196" y2="102" />
+      <path class="angle-arm-ghost" d="M 92 102 L 132 102" />
+      <path class="angle-arm-current" d="M 92 102 L ${round(end)} 68" />
+      <circle class="angle-pivot" cx="92" cy="102" r="5" />
+    </svg>
+  `;
+}
+
+function directionChipSvg(cx, cy, label, active) {
+  return `
+    <g>
+      <circle class="angle-dir-chip${active ? ' is-active' : ''}" cx="${cx}" cy="${cy}" r="15" />
+      <text class="angle-dir-icon${active ? ' is-active' : ''}" x="${cx}" y="${cy + 6}" text-anchor="middle">${label}</text>
+    </g>
+  `;
+}
+
+function armPoseFromAngle(cx, cy, length, deg) {
+  const elbow = polarPoint(cx, cy, length * 0.5, deg);
+  const hand = polarPoint(cx, cy, length, deg);
+  return { elbow, hand };
+}
+
+function smallHandSvg(x, y, deg, ghost = false) {
+  return `
+    <g class="${ghost ? 'angle-small-hand angle-small-hand-ghost' : 'angle-small-hand'}" transform="translate(${round(x)} ${round(y)}) rotate(${round(deg - 90)})">
+      <path d="M -4 -8 C 10 -12, 31 -8, 38 -1 C 43 4, 39 13, 29 15 C 15 17, 3 11, -7 5 Z" />
+      <path d="M 12 -5 L 32 -2 M 11 1 L 34 5" />
+    </g>
+  `;
+}
+
+function palmDownHandSvg(x, y) {
+  return `
+    <path d="M ${x} ${y - 8}
+      C ${x + 30} ${y - 18}, ${x + 86} ${y - 15}, ${x + 122} ${y - 3}
+      C ${x + 135} ${y + 1}, ${x + 135} ${y + 12}, ${x + 121} ${y + 17}
+      C ${x + 86} ${y + 29}, ${x + 31} ${y + 24}, ${x} ${y + 10} Z" />
+    <path d="M ${x + 58} ${y - 5} L ${x + 116} ${y}
+      M ${x + 58} ${y + 3} L ${x + 121} ${y + 8}
+      M ${x + 57} ${y + 11} L ${x + 110} ${y + 15}" />
+  `;
+}
+
+function arcPath(cx, cy, radius, startDeg, endDeg) {
+  const start = polarPoint(cx, cy, radius, startDeg);
+  const end = polarPoint(cx, cy, radius, endDeg);
+  const largeArc = Math.abs(endDeg - startDeg) > 180 ? 1 : 0;
+  const sweep = endDeg > startDeg ? 1 : 0;
+  return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} ${sweep} ${end.x} ${end.y}`;
+}
+
+function polarPoint(cx, cy, radius, deg) {
+  const rad = (deg - 90) * Math.PI / 180;
+  return {
+    x: round(cx + radius * Math.cos(rad)),
+    y: round(cy + radius * Math.sin(rad)),
+  };
+}
+
+function arrowHead(x, y, deg) {
+  const rad = (deg * Math.PI) / 180;
+  const size = 8;
+  const p1 = { x: round(x), y: round(y) };
+  const p2 = { x: round(x - size * Math.cos(rad - 0.55)), y: round(y - size * Math.sin(rad - 0.55)) };
+  const p3 = { x: round(x - size * Math.cos(rad + 0.55)), y: round(y - size * Math.sin(rad + 0.55)) };
+  return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y} Z`;
+}
+
+function round(value) {
+  return Number(value.toFixed(2));
 }
 
 function surfaceResponseParameterTemplate(config) {
@@ -1221,26 +1556,51 @@ function segmentedField(label, key, options, value) {
 }
 
 function amountLimitForModule(moduleName = appState.selectedModule) {
-  if (/head|nod|look/i.test(moduleName)) return { max: 28, unit: '°' };
-  if (moduleName === 'Forward / Backward Reach') return { max: 55, unit: '°' };
-  if (moduleName === 'Side Lift') return { max: 65, unit: '°' };
+  const label = displayModuleName(moduleName);
+  if (/head|nod|look/i.test(moduleName) || /上看|下看|左转|右转|头部/.test(label)) return { max: 28, unit: '°' };
+  if (moduleName === 'Forward / Backward Reach' || label.includes('前后伸手')) return { max: 55, unit: '°' };
+  if (moduleName === 'Side Lift' || label.includes('侧向抬手')) return { max: 65, unit: '°' };
+  if (moduleName === 'Gentle pat' || label.includes('手掌轻拍')) return { max: 32, unit: '°' };
+  if (moduleName === 'Hold still' || label.includes('停留')) return { max: 18, unit: '°' };
   return { max: 60, unit: '°' };
+}
+
+function safeAmountForModule(moduleName, value) {
+  const limit = amountLimitForModule(moduleName);
+  const fallback = Math.round(limit.max * 0.7);
+  return clamp(Number(value) || fallback, 0, limit.max);
+}
+
+function safeParameterAmountForModule(moduleName, value) {
+  if (isInflationModule(moduleName)) return clamp(Number(value) || 45, 0, 100);
+  return safeAmountForModule(moduleName, value);
 }
 
 function normalizedMotionAmount(target) {
   const moduleName = target?.module ?? appState.selectedModule;
   const limit = amountLimitForModule(moduleName);
-  return clamp((Number(target?.amount) || limit.max * 0.7) / limit.max, 0, 1);
+  return clamp(safeAmountForModule(moduleName, target?.amount) / limit.max, 0, 1);
 }
 
 function amountField(value, moduleName = appState.selectedModule) {
   const limit = amountLimitForModule(moduleName);
-  const safeValue = clamp(Number(value) || 0, 0, limit.max);
+  const safeValue = safeAmountForModule(moduleName, value);
   return `
     <label class="parameter-row amount-row">
       <span>角度</span>
       <input data-action-param="amount" type="range" min="0" max="${limit.max}" step="1" value="${safeValue}" />
       <output>${safeValue}${limit.unit}</output>
+    </label>
+  `;
+}
+
+function deformationAmountField(value) {
+  const safeValue = clamp(Number(value) || 45, 0, 100);
+  return `
+    <label class="parameter-row amount-row">
+      <span>幅度</span>
+      <input data-action-param="amount" type="range" min="0" max="100" step="1" value="${safeValue}" />
+      <output>${safeValue}</output>
     </label>
   `;
 }
@@ -1293,10 +1653,13 @@ function deformationLivePreviewTemplate(config) {
   const isLine = config.deformationPattern === 'line';
   const variableLabel = config.variableMode === 'radius' ? (isLine ? '线宽' : '半径') : (isLine ? '线距' : '点距');
   const motionLabel = { sync: '同步', wave: '波浪', edges: isLine ? '隔条' : '隔点' }[config.motionMode] ?? '同步';
+  const levelLabel = magLevelLabel(config.deformationPattern, config.variableMode, config.magLevel);
+  const angleLabel = `${Number(config.angle ?? 0)}°`;
+  const modeDesc = [variableLabel, levelLabel, motionLabel, angleLabel].filter(Boolean).join(' · ');
   return `
     <div class="live-preview-frame ${live ? 'active' : ''}">
       <strong>${live ? '已在 3D 视图气泡中预览' : '预览待接入'}</strong>
-      <span>${live ? `${patternLabel} · ${variableLabel} · ${motionLabel} · ${targetLabel}` : `${patternLabel} · ${targetLabel}`}</span>
+      <span>${live ? `${patternLabel} · ${modeDesc} · ${targetLabel}` : `${patternLabel} · ${targetLabel}`}</span>
       <small>${live ? '3D 视图右上方的圆形气泡正在播放对应形变视频。' : '该形变方式已保存到动作块，后续可接入可视化。'}</small>
     </div>
   `;
@@ -1305,31 +1668,110 @@ function deformationLivePreviewTemplate(config) {
 function deformationVideoFor(config) {
   const pattern = config.deformationPattern;
   if (pattern !== 'point' && pattern !== 'line') return null;
-  const isLine = pattern === 'line';
-  const series = isLine
-    ? (config.variableMode === 'radius' ? 'line_width' : 'line_distance')
-    : (config.variableMode === 'radius' ? 'point_radius' : 'point_distance');
-  const motion = config.motionMode ?? 'sync';
-  const file = motion === 'wave'
-    ? '方式2-波浪.gif'
-    : motion === 'edges'
-      ? (isLine ? '方式3-隔条.gif' : '方式3-隔点.gif')
-      : '方式1-同步.gif';
-  return encodeURI(`/deformations/${series}/${file}`);
+  const target = config.deformationTarget ?? 'head_shell';
+  const variableMode = config.variableMode ?? 'distance';
+  const motionMode = config.motionMode ?? 'sync';
+  // 点/线均有两档(宽距/密距、大半径/小半径 或 粗/细)
+  const magLevel = sanitizeMagLevel(variableMode, config.magLevel);
+  // 点/线均支持旋转角度(0/45/90/135)
+  const angleSuffix = `-${Number(config.angle ?? 0)}`;
+  return `/videos/deformation/${target}-${pattern}-${variableMode}-${magLevel}-${motionMode}${angleSuffix}.mp4`;
 }
 
-const bubbleAnchorState = { object: null, cls: '' };
+const bubbleAnchorState = { objects: [], cls: '', boxes: [] };
 const bubbleProjectVector = new THREE.Vector3();
+const bubbleBoxCorners = Array.from({ length: 8 }, () => new THREE.Vector3());
 
 function bubbleAnchorForTarget(config) {
   if (config.deformationTarget === 'head_shell') {
-    return { object: threeState.parts.head ?? null, cls: 'anchor-head' };
+    return { objects: [threeState.parts.head].filter(Boolean), cls: 'anchor-head' };
   }
   if (config.deformationTarget === 'arm_hand') {
-    const key = config.side === 'Left' ? 'leftarm' : 'rightarm';
-    return { object: threeState.parts[key] ?? threeState.parts.rightarm ?? null, cls: 'anchor-arm' };
+    // 双臂+双手一起投影, 端点自动落在离气泡最近的那只手臂上
+    // (模型左右是 Z 轴, 解剖学右手臂在屏幕左侧, 不按侧别区分)
+    const objects = [
+      threeState.parts.leftarm, threeState.parts.lefthand,
+      threeState.parts.rightarm, threeState.parts.righthand,
+    ].filter(Boolean);
+    return { objects, cls: 'anchor-arm' };
   }
-  return { object: threeState.deformationParts.chest ?? threeState.parts.body ?? null, cls: 'anchor-chest' };
+  const objects = [threeState.deformationParts.chest, threeState.deformationParts.belly].filter(Boolean);
+  if (!objects.length) objects.push(...[threeState.parts.body].filter(Boolean));
+  return { objects, cls: 'anchor-chest' };
+}
+
+// 目标部位局部坐标系下的包围盒（只算一次，之后每帧用 matrixWorld 变换）
+function computeLocalBox(object) {
+  const box = new THREE.Box3();
+  const inverse = new THREE.Matrix4();
+  object.updateWorldMatrix(true, true);
+  inverse.copy(object.matrixWorld).invert();
+  object.traverse((child) => {
+    if (!child.isMesh || !child.geometry) return;
+    if ((child.name ?? '').includes('highlight')) return;
+    child.geometry.computeBoundingBox();
+    if (!child.geometry.boundingBox) return;
+    const local = child.geometry.boundingBox.clone()
+      .applyMatrix4(child.matrixWorld)
+      .applyMatrix4(inverse);
+    box.union(local);
+  });
+  return box.isEmpty() ? null : box;
+}
+
+// 投影 2D 包围盒 (cx, cy, rx, ry) 上、朝 (px, py) 方向的椭圆轮廓点
+// 对圆头/圆臂这类壳体, 椭圆边界比方盒角点更贴合真实剪影
+function ellipseEdgePoint(minX, minY, maxX, maxY, px, py) {
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  const rx = Math.max((maxX - minX) / 2, 1);
+  const ry = Math.max((maxY - minY) / 2, 1);
+  let dx = px - cx;
+  let dy = py - cy;
+  const len = Math.hypot(dx, dy) || 1e-6;
+  dx /= len;
+  dy /= len;
+  const t = 1 / Math.sqrt((dx / rx) ** 2 + (dy / ry) ** 2);
+  return { x: cx + t * dx, y: cy + t * dy };
+}
+
+// 气泡视频用户缩放: 1 = 各类型的默认尺度, 只能放大不能再缩小
+let deformUserZoom = 1;
+// 全屏查看时的缩放: 1 = 完整适配视口, 只能放大
+let deformLightboxZoom = 1;
+
+function applyDeformZoom() {
+  const bubble = document.querySelector('#deformBubble');
+  bubble?.style.setProperty('--user-zoom', deformUserZoom.toFixed(3));
+}
+
+function applyDeformLightboxZoom() {
+  const lightbox = document.querySelector('#deformLightbox');
+  lightbox?.style.setProperty('--lb-zoom', deformLightboxZoom.toFixed(3));
+}
+
+function openDeformLightbox() {
+  const lightbox = document.querySelector('#deformLightbox');
+  const src = document.querySelector('#deformBubbleVideo')?.getAttribute('src');
+  if (!lightbox || !src) return;
+  const video = lightbox.querySelector('#deformLightboxVideo');
+  const captionEl = lightbox.querySelector('#deformLightboxCaption');
+  if (captionEl) captionEl.textContent = document.querySelector('#deformBubbleCaption')?.textContent ?? '';
+  if (video && video.getAttribute('src') !== src) {
+    video.src = src;
+    video.load();
+  }
+  deformLightboxZoom = 1;
+  applyDeformLightboxZoom();
+  lightbox.hidden = false;
+  video?.play().catch(() => {});
+}
+
+function closeDeformLightbox() {
+  const lightbox = document.querySelector('#deformLightbox');
+  if (!lightbox || lightbox.hidden) return;
+  lightbox.hidden = true;
+  lightbox.querySelector('#deformLightboxVideo')?.pause();
 }
 
 function refreshDeformationBubble() {
@@ -1342,23 +1784,45 @@ function refreshDeformationBubble() {
   if (!video) {
     bubble.hidden = true;
     layer?.classList.remove('visible');
-    bubbleAnchorState.object = null;
+    bubbleAnchorState.objects = [];
     bubbleAnchorState.cls = '';
+    bubbleAnchorState.boxes = [];
     return;
   }
   const isLine = config.deformationPattern === 'line';
   const patternLabel = isLine ? '线' : '点';
   const variableLabel = config.variableMode === 'radius' ? (isLine ? '线宽' : '半径') : (isLine ? '线距' : '点距');
   const motionLabel = { sync: '同步', wave: '波浪', edges: isLine ? '隔条' : '隔点' }[config.motionMode] ?? '同步';
-  const img = bubble.querySelector('#deformBubbleImg');
-  if (img && img.getAttribute('src') !== video) img.src = video;
+  const levelLabel = magLevelLabel(config.deformationPattern, config.variableMode, config.magLevel);
+  const videoEl = bubble.querySelector('#deformBubbleVideo');
+  const pathEl = bubble.querySelector('#deformBubblePath');
+  if (pathEl) pathEl.textContent = video;
+  if (videoEl && videoEl.getAttribute('src') !== video) {
+    bubble.classList.remove('missing');
+    videoEl.src = video;
+    videoEl.load();
+    videoEl.play().catch(() => {});
+  }
+  if (videoEl) {
+    videoEl.onerror = () => bubble.classList.add('missing');
+    videoEl.onloadeddata = () => bubble.classList.remove('missing');
+  }
   const caption = bubble.querySelector('#deformBubbleCaption');
-  if (caption) caption.textContent = `${patternLabel} · ${variableLabel} · ${motionLabel}`;
+  const angleLabel = `${Number(config.angle ?? 0)}°`;
+  if (caption) caption.textContent = [patternLabel, variableLabel, levelLabel, motionLabel, angleLabel].filter(Boolean).join(' · ');
   const anchor = bubbleAnchorForTarget(config);
   bubble.classList.remove('anchor-head', 'anchor-arm', 'anchor-chest');
   bubble.classList.add(anchor.cls);
+  // 视角缩放分档: 点距1x 点半径1.5x 线距1.5x 线宽2x (styles.css 对应规则)
+  bubble.classList.toggle('var-distance', (config.variableMode ?? 'distance') === 'distance');
+  bubble.classList.toggle('pat-point', config.deformationPattern === 'point');
   bubble.hidden = false;
-  bubbleAnchorState.object = anchor.object;
+  const changed = anchor.objects.length !== bubbleAnchorState.objects.length
+    || anchor.objects.some((object, index) => bubbleAnchorState.objects[index] !== object);
+  if (changed) {
+    bubbleAnchorState.boxes = anchor.objects.map(() => null);
+  }
+  bubbleAnchorState.objects = anchor.objects;
   bubbleAnchorState.cls = anchor.cls;
   layer?.classList.add('visible');
 }
@@ -1369,27 +1833,84 @@ function updateDeformationLink() {
   const path = document.querySelector('#deformLinkPath');
   const dot = document.querySelector('#deformLinkDot');
   if (!bubble || !layer || !path || !dot) return;
-  if (bubble.hidden || !bubbleAnchorState.object || !threeState.camera) {
+  if (bubble.hidden || !bubbleAnchorState.objects.length || !threeState.camera) {
     layer.classList.remove('visible');
     return;
   }
   layer.classList.add('visible');
   const viewport = document.querySelector('#viewport');
   const rect = viewport.getBoundingClientRect();
-  bubbleAnchorState.object.getWorldPosition(bubbleProjectVector);
-  bubbleProjectVector.project(threeState.camera);
-  if (bubbleProjectVector.z > 1) {
-    path.style.opacity = '0';
-    dot.style.opacity = '0';
-    return;
-  }
-  path.style.opacity = '';
-  dot.style.opacity = '';
-  const tx = (bubbleProjectVector.x * 0.5 + 0.5) * rect.width;
-  const ty = (-bubbleProjectVector.y * 0.5 + 0.5) * rect.height;
   const bubbleRect = bubble.querySelector('.deform-bubble-ring').getBoundingClientRect();
   const bx = bubbleRect.left + bubbleRect.width / 2 - rect.left;
   const by = bubbleRect.top + bubbleRect.height / 2 - rect.top;
+
+  const hideLink = () => {
+    path.style.opacity = '0';
+    dot.style.opacity = '0';
+  };
+
+  // 每个锚点节点的包围盒 8 角 → 世界 → 屏幕，得到该部位的 2D 投影范围，
+  // 端点 = 投影椭圆上朝气泡方向的轮廓点；多个部位时取离气泡最近的那个
+  let best = null;
+  let bestDist = Infinity;
+  for (let index = 0; index < bubbleAnchorState.objects.length; index++) {
+    const object = bubbleAnchorState.objects[index];
+    if (!bubbleAnchorState.boxes[index]) {
+      bubbleAnchorState.boxes[index] = computeLocalBox(object);
+    }
+    const box = bubbleAnchorState.boxes[index];
+    if (!box) continue;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (let i = 0; i < 8; i++) {
+      const corner = bubbleBoxCorners[i];
+      corner.set(
+        i & 1 ? box.max.x : box.min.x,
+        i & 2 ? box.max.y : box.min.y,
+        i & 4 ? box.max.z : box.min.z,
+      );
+      corner.applyMatrix4(object.matrixWorld).project(threeState.camera);
+      if (corner.z > 1) {
+        hideLink();
+        return;
+      }
+      const sx = (corner.x * 0.5 + 0.5) * rect.width;
+      const sy = (-corner.y * 0.5 + 0.5) * rect.height;
+      minX = Math.min(minX, sx);
+      minY = Math.min(minY, sy);
+      maxX = Math.max(maxX, sx);
+      maxY = Math.max(maxY, sy);
+    }
+    const candidate = ellipseEdgePoint(minX, minY, maxX, maxY, bx, by);
+    const dist = (candidate.x - bx) ** 2 + (candidate.y - by) ** 2;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = candidate;
+    }
+  }
+
+  let tx;
+  let ty;
+  if (best) {
+    tx = best.x;
+    ty = best.y;
+  } else {
+    // 兜底：没有几何信息时退回第一个节点的轴心点
+    const object = bubbleAnchorState.objects[0];
+    object.getWorldPosition(bubbleProjectVector);
+    bubbleProjectVector.project(threeState.camera);
+    if (bubbleProjectVector.z > 1) {
+      hideLink();
+      return;
+    }
+    tx = (bubbleProjectVector.x * 0.5 + 0.5) * rect.width;
+    ty = (-bubbleProjectVector.y * 0.5 + 0.5) * rect.height;
+  }
+
+  path.style.opacity = '';
+  dot.style.opacity = '';
   const mx = (bx + tx) / 2;
   const my = Math.min(by, ty) - 26;
   path.setAttribute('d', `M ${bx} ${by} Q ${mx} ${my} ${tx} ${ty}`);
@@ -1584,24 +2105,20 @@ function renderTimeline() {
         <div class="playback">
           <button class="play ${appState.playing ? 'active' : ''}" id="playButton">${appState.playing ? '❚❚' : '▶'}</button>
           <button id="stopButton">■</button>
-          <button class="speed" id="speedButton">${appState.speed.toFixed(1)}x ⌄</button>
           <span class="timecode"><b>${formatTime(appState.currentTime)}</b><em>/</em>${formatTime(TOTAL_DURATION)}</span>
-        </div>
-        <div class="zoom-tools">
-          <button data-view-action="reset-camera">⌕</button>
-          <button data-zoom="out">−</button>
-          <span></span>
-          <button data-zoom="in">⌕</button>
-          <button data-view-action="fullscreen">⛶</button>
         </div>
       </div>
       ${compact ? compactTimelineTemplate() : `
         <div class="ruler">
           <div></div>
-          ${[0, 4, 8, 12, 16, 20].map((time) => `<span style="left:${clipPercent(time)}%">${formatTime(time).slice(0, 5)}</span>`).join('')}
+          <div class="ruler-lane">
+            ${[0, 4, 8, 12, 16, 20].map((time) => `<span style="left:${clipPercent(time)}%">${formatTime(time).slice(0, 5)}</span>`).join('')}
+          </div>
         </div>
         <div class="tracks">
-          <div class="playhead" style="left:calc(138px + ${clipPercent(appState.currentTime)}%)"><span>${formatTime(appState.currentTime)}</span></div>
+          <div class="timeline-play-layer">
+            <div class="playhead" style="left:${clipPercent(appState.currentTime)}%"><span>${formatTime(appState.currentTime)}</span></div>
+          </div>
           ${visibleTracks.map((track) => trackTemplate(track, activeIds)).join('')}
         </div>
       `}
@@ -1647,20 +2164,21 @@ function clipTemplate(clip, activeIds) {
   const active = activeIds.has(clip.id);
   const selected = clip.id === appState.selectedClipId;
   const muted = isClipMuted(clip);
+  const label = timelineClipLabel(clip);
   return `
     <div
       class="clip clip-${clip.color} ${muted ? 'muted' : ''} ${active ? 'is-playing' : ''} ${selected ? 'selected' : ''}"
       data-clip="${clip.id}"
       role="button"
       tabindex="0"
-      aria-label="${displayModuleName(clip.module)}，${clip.duration === Infinity ? '无限时长' : `${clip.duration.toFixed(1)} 秒`}"
+      aria-label="${label}，${clip.duration === Infinity ? '无限时长' : `${clip.duration.toFixed(1)} 秒`}"
       style="left:${clipPercent(clip.start)}%; width:${clipPercent(clip.duration)}%"
     >
       <span class="clip-main">
-        <span class="clip-name">${displayModuleName(clip.module)}</span>
+        <span class="clip-name">${label}</span>
         <small>${clip.duration === Infinity ? '∞' : `${clip.duration.toFixed(1)}s`}</small>
       </span>
-      <button class="clip-delete" type="button" data-delete-clip="${clip.id}" aria-label="删除 ${displayModuleName(clip.module)}" title="从时间轴删除">×</button>
+      <button class="clip-delete" type="button" data-delete-clip="${clip.id}" aria-label="删除 ${label}" title="从时间轴删除">×</button>
       <span class="clip-resize-handle" data-resize-clip="${clip.id}" title="拖动调整时长"></span>
     </div>
   `;
@@ -1838,6 +2356,35 @@ window.addEventListener('pointerup', () => {
 });
 
 document.querySelector('#app').addEventListener('click', (event) => {
+  // 气泡视频缩放 / 全屏查看（优先处理，避免被时间轴点击抑制逻辑吞掉）
+  if (event.target.closest('#deformZoomOut')) {
+    deformUserZoom = Math.max(1, deformUserZoom / 1.25);
+    applyDeformZoom();
+    return;
+  }
+  if (event.target.closest('#deformZoomIn')) {
+    deformUserZoom = Math.min(6, deformUserZoom * 1.25);
+    applyDeformZoom();
+    return;
+  }
+  if (event.target.closest('#deformExpand')) {
+    openDeformLightbox();
+    return;
+  }
+  if (event.target.closest('#deformLbZoomOut')) {
+    deformLightboxZoom = Math.max(1, deformLightboxZoom / 1.25);
+    applyDeformLightboxZoom();
+    return;
+  }
+  if (event.target.closest('#deformLbZoomIn')) {
+    deformLightboxZoom = Math.min(4, deformLightboxZoom * 1.25);
+    applyDeformLightboxZoom();
+    return;
+  }
+  if (event.target.closest('#deformLightboxClose') || event.target.id === 'deformLightbox') {
+    closeDeformLightbox();
+    return;
+  }
   if (suppressTimelineClick) {
     suppressTimelineClick = false;
     return;
@@ -2149,6 +2696,10 @@ document.querySelector('#app').addEventListener('drop', (event) => {
 });
 
 window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    closeDeformLightbox();
+    return;
+  }
   if (!['Delete', 'Backspace'].includes(event.key)) return;
   const activeTag = document.activeElement?.tagName?.toLowerCase();
   if (['input', 'textarea', 'select'].includes(activeTag)) return;
@@ -2248,7 +2799,8 @@ function findModuleStart(moduleName) {
 
 function inferTrack(moduleName) {
   if (/head|nod|look/i.test(moduleName)) return 'Head';
-  if (/hand|arm|pat|vibration|reach|side lift|retract|hold still|open arms|close arms/i.test(moduleName)) return 'Arm / Hand';
+  if (/gentle pat|hold still|hand inflate|hand vibration|warm hand|hand glow/i.test(moduleName)) return 'Hand';
+  if (/hand forward|hand back|hand up|hand down|arm|reach|side lift|retract|open arms|close arms|raise hand|lower hand|move hand back/i.test(moduleName)) return 'Arm';
   if (/^breathing$/i.test(moduleName)) return 'Chest + Belly';
   if (/breathing light|heartbeat|color|glow/i.test(moduleName)) return 'Chest';
   if (/breathing rise|local warmth|soft rebound/i.test(moduleName)) return 'Belly';
@@ -2258,7 +2810,7 @@ function inferTrack(moduleName) {
 
 function inferColor(moduleName) {
   const track = inferTrack(moduleName);
-  return { Head: 'blue', 'Arm / Hand': 'green', 'Chest + Belly': 'orange', Chest: 'pink', Belly: 'orange', 'Body / Wheels': 'cyan' }[track] ?? 'blue';
+  return { Head: 'blue', Arm: 'cyan', Hand: 'green', 'Arm / Hand': 'green', 'Chest + Belly': 'orange', Chest: 'pink', Belly: 'orange', 'Body / Wheels': 'cyan' }[track] ?? 'blue';
 }
 
 function inferAction(moduleName) {
@@ -2269,7 +2821,8 @@ function inferAction(moduleName) {
   if (/nod|look/i.test(moduleName)) return 'nodHead';
   if (/soft head inflate/i.test(moduleName)) return 'headInflate';
   if (/arm inflate/i.test(moduleName)) return 'armInflate';
-  if (/forward \/ backward reach/i.test(moduleName)) return 'handForward';
+  if (/hand inflate/i.test(moduleName)) return 'handInflate';
+  if (/forward \/ backward reach/i.test(moduleName)) return 'reachForward';
   if (/side lift/i.test(moduleName)) return 'raiseArm';
   if (/hand up/i.test(moduleName)) return 'raiseArm';
   if (/hand down/i.test(moduleName)) return 'lowerArm';
@@ -2636,36 +3189,16 @@ function createPointMarkersForMesh(mesh, targetKey, meshIndex) {
 
 function createPointDeformationVisuals() {
   clearPointDeformationVisuals();
-  deformationTargets.forEach(({ key }) => {
-    pointTargetMeshes(key).forEach((mesh, index) => createPointMarkersForMesh(mesh, key, index));
-  });
 }
 
 function activePointDeformationTarget() {
-  const config = getPanelConfig();
-  return config.deformationPattern === 'point' ? config.deformationTarget : null;
+  return null;
 }
 
 function updatePointDeformationVisuals(time, activeTarget = activePointDeformationTarget()) {
-  threeState.pointDeformationOverlays.forEach((overlay) => {
-    overlay.visible = Boolean(activeTarget && overlay.name.startsWith(activeTarget));
-  });
-  if (!threeState.pointDeformationVisuals.length) return;
-  threeState.pointDeformationVisuals.forEach((marker) => {
-    const visible = marker.userData.targetKey === activeTarget;
-    marker.visible = visible;
-    if (!visible) return;
-    const phase = time * 1.8 + marker.userData.delay;
-    const pulse = 0.5 + Math.sin(phase) * 0.5;
-    const scale = marker.userData.baseScale * (0.9 + pulse * 0.28);
-    marker.scale.setScalar(scale);
-    if (marker.userData.basePosition && marker.userData.localNormal && marker.userData.bubbleRadius) {
-      marker.position.copy(marker.userData.basePosition)
-        .addScaledVector(marker.userData.localNormal, -marker.userData.bubbleRadius * pulse * 0.28);
-    }
-    const halo = marker.children[0];
-    if (halo?.material) halo.material.opacity = 0.025 + pulse * 0.075;
-  });
+  if (threeState.pointDeformationOverlays.length || threeState.pointDeformationVisuals.length) {
+    clearPointDeformationVisuals();
+  }
 }
 
 function updateViewportToolState() {
@@ -2742,7 +3275,11 @@ function setupRobotViewport() {
     threeState.controls.update();
   }
 
-  new GLTFLoader().load(
+  const dracoLoader = new DRACOLoader();
+  dracoLoader.setDecoderPath('/draco/');
+  const gltfLoader = new GLTFLoader();
+  gltfLoader.setDRACOLoader(dracoLoader);
+  gltfLoader.load(
     '/models/gentle_robot_v0.glb',
     (gltf) => {
       const model = gltf.scene;
@@ -3134,6 +3671,24 @@ function applyArmInflation(side, value) {
   });
 }
 
+function applyHandInflation(side, value) {
+  const safeValue = clamp(value, 0, 1);
+  const handScale = {
+    x: 1 + safeValue * 0.055,
+    y: 1 + safeValue * 0.035,
+    z: 1 + safeValue * 0.055,
+  };
+  const sides = side === 'Left'
+    ? ['left']
+    : side === 'Both'
+      ? ['left', 'right']
+      : ['right'];
+
+  sides.forEach((targetSide) => {
+    scaleRobotPartFromBase(`${targetSide}hand`, handScale);
+  });
+}
+
 function armSideWeights(side = 'Both') {
   return {
     left: side === 'Left' || side === 'Both',
@@ -3142,19 +3697,21 @@ function armSideWeights(side = 'Both') {
 }
 
 function getArmLiftPose(time) {
-  const sideLiftBase = { leftZ: 0.62, rightZ: -0.62 };
-  let pose = { leftZ: 0, rightZ: 0 };
+  // 侧向抬手: 绕世界 x 轴把手臂向身体两侧抬起
+  // (左手臂基座绕 y 旋转约180°, 局部 x 相同符号即产生镜像世界运动)
+  const sideLiftBase = { leftX: -0.62, rightX: -0.62 };
+  let pose = { leftX: 0, rightX: 0 };
   const armClips = appState.timeline
     .filter((clip) => !isClipMuted(clip) && ['raiseArm', 'lowerArm'].includes(clip.action))
     .sort((a, b) => a.start - b.start);
 
   const targetForClip = (clip) => {
-    if (clip.action !== 'raiseArm') return { leftZ: 0, rightZ: 0 };
-    const amount = clamp((Number(clip.amount) || 45) / 100, 0, 1);
+    if (clip.action !== 'raiseArm') return { leftX: 0, rightX: 0 };
+    const amount = normalizedMotionAmount(clip);
     const weights = armSideWeights(clip.side);
     return {
-      leftZ: weights.left ? sideLiftBase.leftZ * amount : 0,
-      rightZ: weights.right ? sideLiftBase.rightZ * amount : 0,
+      leftX: weights.left ? sideLiftBase.leftX * amount : 0,
+      rightX: weights.right ? sideLiftBase.rightX * amount : 0,
     };
   };
 
@@ -3172,8 +3729,8 @@ function getArmLiftPose(time) {
     const progress = clamp((time - start) / clip.duration, 0, 1);
     const eased = 0.5 - Math.cos(progress * Math.PI) / 2;
     pose = {
-      leftZ: pose.leftZ + (target.leftZ - pose.leftZ) * eased,
-      rightZ: pose.rightZ + (target.rightZ - pose.rightZ) * eased,
+      leftX: pose.leftX + (target.leftX - pose.leftX) * eased,
+      rightX: pose.rightX + (target.rightX - pose.rightX) * eased,
     };
     break;
   }
@@ -3182,10 +3739,13 @@ function getArmLiftPose(time) {
 }
 
 function getArmReachAngle(time) {
-  const reachPose = { leftX: -0.72, rightX: -0.72, leftZ: 0, rightZ: 0 };
-  const backPose = { leftX: 0.34, rightX: 0.34, leftZ: 0, rightZ: 0 };
-  const openPose = { leftX: 0, rightX: 0, leftZ: 0.42, rightZ: -0.42 };
-  const closePose = { leftX: 0, rightX: 0, leftZ: -0.22, rightZ: 0.22 };
+  // 机器人脸朝 +x, 手臂下垂 -y:
+  //   前伸/后收 = 绕世界 z 轴摆动 (左手臂基座镜像, 局部 z 取相反符号)
+  //   张开/合拢 = 绕世界 x 轴摆动 (局部 x 相同符号即镜像)
+  const reachPose = { leftX: 0, rightX: 0, leftZ: -0.72, rightZ: 0.72 };
+  const backPose = { leftX: 0, rightX: 0, leftZ: 0.34, rightZ: -0.34 };
+  const openPose = { leftX: -0.42, rightX: -0.42, leftZ: 0, rightZ: 0 };
+  const closePose = { leftX: 0.22, rightX: 0.22, leftZ: 0, rightZ: 0 };
   const retractPose = { leftX: 0, rightX: 0, leftZ: 0, rightZ: 0 };
   let pose = { leftX: 0, rightX: 0, leftZ: 0, rightZ: 0 };
   const reachClips = appState.timeline
@@ -3193,14 +3753,14 @@ function getArmReachAngle(time) {
     .sort((a, b) => a.start - b.start);
 
   const applyClipParameters = (target, clip) => {
-    const amount = clamp((Number(clip.amount) || 45) / 100, 0, 1);
+    const amount = normalizedMotionAmount(clip);
     const directionMultiplier = clip.direction === 'Backward' ? -1 : 1;
     const weights = armSideWeights(clip.side);
     return {
       leftX: weights.left ? target.leftX * amount * directionMultiplier : 0,
       rightX: weights.right ? target.rightX * amount * directionMultiplier : 0,
-      leftZ: weights.left ? target.leftZ * amount : 0,
-      rightZ: weights.right ? target.rightZ * amount : 0,
+      leftZ: weights.left ? target.leftZ * amount * directionMultiplier : 0,
+      rightZ: weights.right ? target.rightZ * amount * directionMultiplier : 0,
     };
   };
 
@@ -3272,6 +3832,8 @@ function applyTimelinePose(time) {
   const armReach = getArmReachAngle(time);
   let leftHand = 0;
   let rightHand = 0;
+  let leftPat = 0;
+  let rightPat = 0;
   let handSignal = null;
   const inflation = {
     head: 0,
@@ -3279,21 +3841,28 @@ function applyTimelinePose(time) {
     belly: 0,
     leftArm: 0,
     rightArm: 0,
+    leftHand: 0,
+    rightHand: 0,
   };
 
   active.forEach((clip) => {
     const progress = clamp((time - clip.start) / clip.duration, 0, 1);
     const elapsed = Math.max(0, time - clip.start);
     const eased = 0.5 - Math.cos(progress * Math.PI) / 2;
-    if (clip.action === 'nodHead') headPose.x = -0.16 * Math.sin(progress * Math.PI * 2);
-    if (clip.action === 'headUp') headPose.x = -0.24 * eased;
-    if (clip.action === 'headDown') headPose.x = 0.24 * eased;
-    if (clip.action === 'headLeft') headPose.y = 0.34 * eased;
-    if (clip.action === 'headRight') headPose.y = -0.34 * eased;
+    const amount = normalizedMotionAmount(clip);
+    const surfaceDeformation = isSurfaceDeformationClip(clip);
+    // 头盔局部轴 = 世界轴, 脸朝 +x: 点头/上看下看绕 z 轴, 左右转绕 y 轴
+    if (clip.action === 'nodHead') headPose.z = -0.16 * amount * Math.sin(progress * Math.PI * 2);
+    if (clip.action === 'headUp') headPose.z = 0.24 * amount * eased;
+    if (clip.action === 'headDown') headPose.z = -0.24 * amount * eased;
+    if (clip.action === 'headLeft') headPose.y = 0.34 * amount * eased;
+    if (clip.action === 'headRight') headPose.y = -0.34 * amount * eased;
     if (clip.action === 'patHand') {
-      const pat = Math.max(0, Math.sin(progress * Math.PI * 6)) * 0.34;
-      leftHand = pat;
-      rightHand = -pat;
+      // 掌心向内轻拍: 两手绕各自局部 z 轴同号旋转 = 向世界中线合拢拍打
+      const pat = Math.max(0, Math.sin(progress * Math.PI)) * 0.34 * amount;
+      const weights = armSideWeights(clip.side);
+      if (weights.left) leftPat = Math.max(leftPat, pat);
+      if (weights.right) rightPat = Math.max(rightPat, pat);
     }
     if (clip.action === 'vibrateHand') {
       const vibration = Math.sin(progress * Math.PI * 28) * 0.08;
@@ -3312,24 +3881,29 @@ function applyTimelinePose(time) {
       leftHand *= 0.25;
       rightHand *= 0.25;
     }
-    if (clip.action === 'headInflate') {
+    if (clip.action === 'headInflate' && surfaceDeformation) {
       inflation.head = Math.max(inflation.head, breathingPulse(progress) * 0.9);
     }
-    if (clip.action === 'armInflate') {
+    if (clip.action === 'armInflate' && surfaceDeformation) {
       const armValue = breathingPulse(progress);
       if (clip.side === 'Left' || clip.side === 'Both') inflation.leftArm = Math.max(inflation.leftArm, armValue);
       if (clip.side === 'Right' || clip.side === 'Both' || !clip.side) inflation.rightArm = Math.max(inflation.rightArm, armValue);
     }
-    if (clip.action === 'chestBreathing') {
+    if (clip.action === 'handInflate' && surfaceDeformation) {
+      const handValue = breathingPulse(progress);
+      if (clip.side === 'Left' || clip.side === 'Both') inflation.leftHand = Math.max(inflation.leftHand, handValue);
+      if (clip.side === 'Right' || clip.side === 'Both' || !clip.side) inflation.rightHand = Math.max(inflation.rightHand, handValue);
+    }
+    if (clip.action === 'chestBreathing' && surfaceDeformation) {
       inflation.chest = Math.max(inflation.chest, 0.34 + breathingPulse(progress) * 0.66);
     }
-    if (clip.action === 'chestHeartbeat') {
+    if (clip.action === 'chestHeartbeat' && surfaceDeformation) {
       inflation.chest = Math.max(inflation.chest, 0.3 + heartbeatPulse(elapsed * 1.35) * 0.7);
     }
-    if (clip.action === 'bellyBreathing') {
+    if (clip.action === 'bellyBreathing' && surfaceDeformation) {
       inflation.belly = Math.max(inflation.belly, breathingPulse(progress));
     }
-    if (clip.action === 'bellyRebound') {
+    if (clip.action === 'bellyRebound' && surfaceDeformation) {
       inflation.belly = Math.max(inflation.belly, reboundPulse(progress));
     }
   });
@@ -3338,11 +3912,13 @@ function applyTimelinePose(time) {
   applyTorsoInflation(Math.max(inflation.chest, inflation.belly));
   applyArmInflation('Left', inflation.leftArm);
   applyArmInflation('Right', inflation.rightArm);
+  applyHandInflation('Left', inflation.leftHand);
+  applyHandInflation('Right', inflation.rightHand);
   rotateFromBase('head', [{ axis: 'x', angle: headPose.x }, { axis: 'y', angle: headPose.y }, { axis: 'z', angle: headPose.z }]);
-  rotateFromBase('leftarm', [{ axis: 'x', angle: armReach.leftX }, { axis: 'z', angle: armLift.leftZ + armReach.leftZ }]);
-  rotateFromBase('rightarm', [{ axis: 'x', angle: armReach.rightX }, { axis: 'z', angle: armLift.rightZ + armReach.rightZ }]);
-  rotateFromBase('lefthand', [{ axis: 'x', angle: leftHand }]);
-  rotateFromBase('righthand', [{ axis: 'x', angle: rightHand }]);
+  rotateFromBase('leftarm', [{ axis: 'x', angle: armReach.leftX + armLift.leftX }, { axis: 'z', angle: armReach.leftZ }]);
+  rotateFromBase('rightarm', [{ axis: 'x', angle: armReach.rightX + armLift.rightX }, { axis: 'z', angle: armReach.rightZ }]);
+  rotateFromBase('lefthand', [{ axis: 'x', angle: leftHand }, { axis: 'z', angle: leftPat }]);
+  rotateFromBase('righthand', [{ axis: 'x', angle: rightHand }, { axis: 'z', angle: rightPat }]);
   if (handSignal) {
     setPartSignal('lefthand', handSignal.color, handSignal.intensity);
     setPartSignal('righthand', handSignal.color, handSignal.intensity);
@@ -3384,7 +3960,7 @@ function updateTimelineRuntimeDom() {
   if (timeLabel) timeLabel.textContent = formatTime(appState.currentTime);
 
   const playhead = document.querySelector('.playhead');
-  if (playhead) playhead.style.left = `calc(138px + ${clipPercent(appState.currentTime)}%)`;
+  if (playhead) playhead.style.left = `${clipPercent(appState.currentTime)}%`;
 
   const playheadLabel = document.querySelector('.playhead span');
   if (playheadLabel) playheadLabel.textContent = formatTime(appState.currentTime);
