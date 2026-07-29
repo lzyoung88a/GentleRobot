@@ -5,6 +5,7 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 const STORAGE_KEY = 'gentleRobotStudioState.v4';
+const PRESETS_STORAGE_KEY = 'gentleRobotStudioPresets.v1';
 const TOTAL_DURATION = 24;
 const timelineTracks = [
   { name: 'Head', icon: '☻' },
@@ -409,6 +410,8 @@ const defaultState = {
   showUserReference: false,
   sceneMenuOpen: false,
   cameraMenuOpen: false,
+  presetMenuOpen: false,
+  presetNameDraft: null,
   toast: '',
 };
 
@@ -959,7 +962,6 @@ function appTemplate() {
       </main>
       <aside class="right-panel" id="rightPanel"></aside>
       <div class="toast" id="toast"></div>
-      <div class="modal-backdrop" id="modalBackdrop" hidden></div>
     </div>
   `;
 }
@@ -1067,8 +1069,41 @@ function renderTopbar() {
     <div class="top-spacer"></div>
     <button class="icon-button" id="undoButton" ${history.length ? '' : 'disabled'}>↶</button>
     <button class="icon-button" id="redoButton" ${future.length ? '' : 'disabled'}>↷</button>
-    <button class="deploy-button" id="deployButton">导出 <span>⌄</span></button>
+    <div class="preset-selector">
+      <button class="deploy-button ${appState.presetMenuOpen ? 'active' : ''}" id="presetMenuButton">保存 <span>⌄</span></button>
+      <div class="preset-menu" id="presetMenu" ${appState.presetMenuOpen ? '' : 'hidden'}>
+        ${appState.presetNameDraft != null ? `
+          <div class="preset-save-row">
+            <input id="presetNameInput" type="text" value="${escapeHtml(appState.presetNameDraft)}" maxlength="30" placeholder="方案名称" />
+            <button id="presetSaveConfirm" title="确认保存">✓</button>
+            <button id="presetSaveCancel" title="取消">×</button>
+          </div>
+        ` : `
+          <button class="preset-save-button" id="presetSaveStart">＋ 保存当前时间轴</button>
+        `}
+        ${(() => {
+          const presets = loadPresets();
+          if (!presets.length) return '<div class="preset-empty">还没有保存的方案</div>';
+          return presets.map((preset) => `
+            <div class="preset-item">
+              <button class="preset-recall" data-preset-recall="${preset.id}">
+                <span>${escapeHtml(preset.name)}</span>
+                <small>${preset.clips.length} 个动作</small>
+              </button>
+              <button class="preset-delete" data-preset-delete="${preset.id}" title="删除方案">×</button>
+            </div>
+          `).join('');
+        })()}
+      </div>
+    </div>
   `;
+
+  // 命名输入框出现时自动聚焦并全选默认名, 方便直接覆盖输入
+  if (appState.presetNameDraft != null) {
+    const input = document.querySelector('#presetNameInput');
+    input?.focus();
+    input?.select();
+  }
 }
 
 function renderModules() {
@@ -2214,49 +2249,7 @@ function renderToast() {
 }
 
 function renderModal() {
-  const config = exportConfig();
-  document.querySelector('#modalBackdrop').hidden = false;
-  document.querySelector('#modalBackdrop').innerHTML = `
-    <section class="summary-modal">
-      <header>
-        <div>
-          <h2>方案摘要</h2>
-          <p>用于研究讨论的模拟摘要，不会真实部署机器人。</p>
-        </div>
-        <button id="closeModalButton">×</button>
-      </header>
-      <div class="summary-grid">
-        <div><span>场景</span><strong>${sceneBackdrops[appState.sceneBackdrop]?.label ?? '工作室'}</strong></div>
-        <div><span>当前模块</span><strong>${displayModuleName(appState.selectedModule)}</strong></div>
-        <div><span>目标部位</span><strong>${displayGroupName(getModuleConfig().targetLabel)} · ${displayOption(getModuleConfig().side)}</strong></div>
-        <div><span>形变</span><strong>${deformationTypes[getModuleConfig().deformationType]?.label ?? '无形变'}</strong></div>
-        <div><span>时间轴动作</span><strong>${appState.timeline.length}</strong></div>
-      </div>
-      <textarea readonly>${JSON.stringify(config, null, 2)}</textarea>
-      <footer>
-        <button id="copyJsonButton">复制 JSON</button>
-        <button id="closeModalButtonFooter">关闭</button>
-      </footer>
-    </section>
-  `;
-}
-
-function exportConfig() {
-  return {
-    mode: 'Robot Response Prototype',
-    sceneBackdrop: sceneBackdrops[appState.sceneBackdrop]?.label ?? 'Studio',
-    selectedModule: appState.selectedModule,
-    modules: appState.moduleConfigs,
-    targetPart: getModuleConfig().targetPart,
-    deformationType: getModuleConfig().deformationType,
-    materials: appState.materials,
-    viewTools: {
-      showGrid: appState.showGrid,
-      showPartHighlight: appState.showPartHighlight,
-      showUserReference: appState.showUserReference,
-    },
-    timeline: appState.timeline,
-  };
+  // 原"导出"摘要弹窗已随按钮一起移除, 保留空函数避免遗漏调用报错
 }
 
 document.querySelector('#app').innerHTML = appTemplate();
@@ -2414,6 +2407,11 @@ document.querySelector('#app').addEventListener('click', (event) => {
   if (timelineEdit?.moved) return;
   if (appState.sceneMenuOpen && !event.target.closest('.scene-selector')) {
     appState.sceneMenuOpen = false;
+    renderTopbar();
+  }
+  if (appState.presetMenuOpen && !event.target.closest('.preset-selector')) {
+    appState.presetMenuOpen = false;
+    appState.presetNameDraft = null;
     renderTopbar();
   }
 
@@ -2594,8 +2592,47 @@ document.querySelector('#app').addEventListener('click', (event) => {
     return;
   }
 
-  if (target.id === 'deployButton') {
-    renderModal();
+  if (target.id === 'presetMenuButton') {
+    appState.presetMenuOpen = !appState.presetMenuOpen;
+    if (!appState.presetMenuOpen) appState.presetNameDraft = null;
+    renderTopbar();
+    return;
+  }
+
+  if (target.id === 'presetSaveStart') {
+    appState.presetNameDraft = defaultPresetName();
+    renderTopbar();
+    return;
+  }
+
+  if (target.id === 'presetSaveCancel') {
+    appState.presetNameDraft = null;
+    renderTopbar();
+    return;
+  }
+
+  if (target.id === 'presetSaveConfirm') {
+    const input = document.querySelector('#presetNameInput');
+    const savedName = saveCurrentTimelineAsPreset(input?.value ?? '');
+    appState.presetNameDraft = null;
+    renderTopbar();
+    setToast(`已保存「${savedName}」`);
+    return;
+  }
+
+  if (target.dataset.presetRecall) {
+    const recalledName = recallPreset(target.dataset.presetRecall);
+    appState.presetMenuOpen = false;
+    appState.presetNameDraft = null;
+    renderTopbar();
+    if (recalledName) setToast(`已载入「${recalledName}」`);
+    return;
+  }
+
+  if (target.dataset.presetDelete) {
+    deletePreset(target.dataset.presetDelete);
+    renderTopbar();
+    setToast('方案已删除');
     return;
   }
 
@@ -2629,16 +2666,6 @@ document.querySelector('#app').addEventListener('click', (event) => {
   if (target.dataset.viewAction) {
     handleViewAction(target.dataset.viewAction);
     return;
-  }
-
-  if (target.id === 'closeModalButton' || target.id === 'closeModalButtonFooter') {
-    document.querySelector('#modalBackdrop').hidden = true;
-    return;
-  }
-
-  if (target.id === 'copyJsonButton') {
-    navigator.clipboard?.writeText(JSON.stringify(exportConfig(), null, 2));
-    setToast('JSON 已复制');
   }
 });
 
@@ -2696,6 +2723,15 @@ document.querySelector('#app').addEventListener('drop', (event) => {
 });
 
 window.addEventListener('keydown', (event) => {
+  // 方案命名输入框: 回车确认, Esc 取消 (要放在全局 Esc 之前)
+  if (event.target?.id === 'presetNameInput') {
+    if (event.key === 'Enter') document.querySelector('#presetSaveConfirm')?.click();
+    if (event.key === 'Escape') {
+      appState.presetNameDraft = null;
+      renderTopbar();
+    }
+    return;
+  }
   if (event.key === 'Escape') {
     closeDeformLightbox();
     return;
@@ -2795,6 +2831,64 @@ function exportConfigForStorage() {
     showPartHighlight: appState.showPartHighlight,
     showUserReference: appState.showUserReference,
   };
+}
+
+// ---------- 时间轴方案 (preset): 保存 / 召回 / 删除 ----------
+function loadPresets() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PRESETS_STORAGE_KEY));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistPresets(presets) {
+  localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(presets));
+}
+
+function defaultPresetName(presets = loadPresets()) {
+  const names = new Set(presets.map((preset) => preset.name));
+  let index = 1;
+  while (names.has(`方案 ${index}`)) index += 1;
+  return `方案 ${index}`;
+}
+
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+}
+
+function saveCurrentTimelineAsPreset(name) {
+  const presets = loadPresets();
+  const finalName = (name ?? '').trim() || defaultPresetName(presets);
+  presets.unshift({
+    id: `preset-${Date.now()}-${Math.round(Math.random() * 100000)}`,
+    name: finalName,
+    createdAt: new Date().toISOString(),
+    clips: JSON.parse(JSON.stringify(appState.timeline)),
+  });
+  persistPresets(presets);
+  return finalName;
+}
+
+function recallPreset(presetId) {
+  const preset = loadPresets().find((item) => item.id === presetId);
+  if (!preset) return null;
+  snapshot();
+  appState.timeline = preset.clips.map((clip, index) => ({
+    ...JSON.parse(JSON.stringify(clip)),
+    id: `clip-${Date.now()}-${index}-${Math.round(Math.random() * 100000)}`,
+  }));
+  appState.selectedClipId = null;
+  appState.currentTime = 0;
+  renderTimeline();
+  renderRightPanel();
+  applyTimelinePose(0);
+  return preset.name;
+}
+
+function deletePreset(presetId) {
+  persistPresets(loadPresets().filter((item) => item.id !== presetId));
 }
 
 function findModuleStart(moduleName) {
