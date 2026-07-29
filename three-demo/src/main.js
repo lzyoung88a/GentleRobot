@@ -833,6 +833,7 @@ function setActionParameter(key, value, shouldSnapshot = true) {
   const target = getEditableActionTarget();
   const moduleName = target.module ?? appState.selectedModule;
   target[key] = key === 'amount' ? safeParameterAmountForModule(moduleName, value, target.direction) : value;
+  if (key === 'intensity') target[key] = clamp(Number(value) || 0, 0, 100);
   target.deformationTarget = lockedDeformationTarget(moduleName);
 
   if (key === 'speed') {
@@ -871,6 +872,8 @@ function setActionParameterLive(key, value) {
   const target = getEditableActionTarget();
   const moduleName = target.module ?? appState.selectedModule;
   target[key] = key === 'amount' ? safeParameterAmountForModule(moduleName, value, target.direction) : value;
+  // 数值框手动输入超限: 自动钳制到设定的最大/最小
+  if (key === 'intensity') target[key] = clamp(Number(value) || 0, 0, 100);
   if (key === 'speed') {
     target.duration = clamp(durationForSpeed(value), 0.5, target.start == null ? TOTAL_DURATION : TOTAL_DURATION - target.start);
   }
@@ -968,7 +971,7 @@ function robotPreviewTemplate() {
       <div class="scene-floor-shadow"></div>
       <div class="view-header" id="viewHeader">${viewHeaderTemplate()}</div>
       <div class="viewport-tools top">
-        <button data-view-action="toggle-grid" class="${appState.showGrid ? 'active' : ''}" title="网格" aria-label="切换网格">▦</button>
+        <button data-view-action="reset-camera" title="复位视角" aria-label="回到初始视角">⌂</button>
         <button data-view-action="toggle-highlight" class="${appState.showPartHighlight ? 'active' : ''}" title="部位高亮" aria-label="切换部位高亮">⬡</button>
         <button data-view-action="fullscreen" title="全屏预览" aria-label="全屏预览">⤢</button>
       </div>
@@ -1017,26 +1020,8 @@ function robotPreviewTemplate() {
 }
 
 function viewHeaderTemplate() {
-  const currentView = cameraViews[appState.cameraView] ?? cameraViews.front;
-  const label = appState.sceneBackdrop === 'studio' ? currentView.label : '场景视图';
-  return `
-    <div class="camera-selector">
-      <button class="select-pill ${appState.cameraMenuOpen ? 'active' : ''}" id="cameraMenuButton">
-        <span>${label}</span>
-        <span class="select-arrow">⌄</span>
-      </button>
-      <div class="camera-menu" ${appState.cameraMenuOpen ? '' : 'hidden'}>
-        ${Object.entries(cameraViews)
-          .map(([key, item]) => `
-            <button class="${key === appState.cameraView ? 'active' : ''}" data-camera-view="${key}">
-              <span class="scene-check">${key === appState.cameraView ? '✓' : ''}</span>
-              <span>${item.label}</span>
-            </button>
-          `)
-          .join('')}
-      </div>
-    </div>
-  `;
+  // 视角下拉已移除: 所有场景统一为自由视角, 用户直接拖拽旋转
+  return '';
 }
 
 function renderViewHeader() {
@@ -1594,7 +1579,7 @@ function amountLimitForModule(moduleName = appState.selectedModule, direction) {
   if (moduleName === 'Forward / Backward Reach' || label.includes('前后伸手')) {
     return { max: direction === 'Backward' ? 90 : 180, unit: '°' };
   }
-  if (moduleName === 'Side Lift' || label.includes('侧向抬手')) return { max: 150, unit: '°' };
+  if (moduleName === 'Side Lift' || label.includes('侧向抬手')) return { max: 90, unit: '°' };
   if (moduleName === 'Palm Tilt' || label.includes('掌心摆动')) return { max: 60, unit: '°' };
   if (moduleName === 'Hand Side Tilt' || label.includes('侧面摆动')) return { max: 50, unit: '°' };
   if (moduleName === 'Gentle pat' || label.includes('手掌轻拍')) return { max: 32, unit: '°' };
@@ -1626,7 +1611,7 @@ function amountField(value, moduleName = appState.selectedModule, direction) {
     <label class="parameter-row amount-row">
       <span>角度</span>
       <input data-action-param="amount" type="range" min="0" max="${limit.max}" step="1" value="${safeValue}" />
-      <output>${safeValue}${limit.unit}</output>
+      <input data-action-param="amount" class="amount-input" type="number" min="0" max="${limit.max}" step="1" value="${safeValue}" />
     </label>
   `;
 }
@@ -1637,7 +1622,7 @@ function deformationAmountField(value) {
     <label class="parameter-row amount-row">
       <span>幅度</span>
       <input data-action-param="amount" type="range" min="0" max="100" step="1" value="${safeValue}" />
-      <output>${safeValue}</output>
+      <input data-action-param="amount" class="amount-input" type="number" min="0" max="100" step="1" value="${safeValue}" />
     </label>
   `;
 }
@@ -1648,7 +1633,7 @@ function intensityField(value) {
     <label class="parameter-row amount-row">
       <span>强度</span>
       <input data-action-param="intensity" type="range" min="0" max="100" step="1" value="${safeValue}" />
-      <output>${safeValue}</output>
+      <input data-action-param="intensity" class="amount-input" type="number" min="0" max="100" step="1" value="${safeValue}" />
     </label>
   `;
 }
@@ -2431,10 +2416,6 @@ document.querySelector('#app').addEventListener('click', (event) => {
     appState.sceneMenuOpen = false;
     renderTopbar();
   }
-  if (appState.cameraMenuOpen && !event.target.closest('.camera-selector')) {
-    appState.cameraMenuOpen = false;
-    renderViewHeader();
-  }
 
   const deleteClipTarget = event.target.closest('[data-delete-clip]');
   if (deleteClipTarget) {
@@ -2465,12 +2446,6 @@ document.querySelector('#app').addEventListener('click', (event) => {
     return;
   }
 
-  if (target.id === 'cameraMenuButton') {
-    appState.cameraMenuOpen = !appState.cameraMenuOpen;
-    renderViewHeader();
-    return;
-  }
-
   if (target.dataset.sceneBackdrop) {
     snapshot();
     appState.sceneBackdrop = target.dataset.sceneBackdrop;
@@ -2479,18 +2454,6 @@ document.querySelector('#app').addEventListener('click', (event) => {
     renderViewHeader();
     applySceneBackdrop();
     setToast(`${sceneBackdrops[appState.sceneBackdrop].label} scene`);
-    return;
-  }
-
-  if (target.dataset.cameraView) {
-    snapshot();
-    appState.cameraView = target.dataset.cameraView;
-    appState.cameraMenuOpen = false;
-    appState.sceneBackdrop = 'studio';
-    renderTopbar();
-    renderViewHeader();
-    applySceneBackdrop();
-    setToast(`${cameraViews[appState.cameraView].label} · 工作室背景`);
     return;
   }
 
@@ -2755,9 +2718,10 @@ document.querySelector('#app').addEventListener('input', (event) => {
     }
     const value = target.type === 'number' || target.type === 'range' ? Number(target.value) : target.value;
     setActionParameterLive(target.dataset.actionParam, value);
-    // 只更新当前行的 output 文本, 不重渲染整个面板
-    const output = target.closest('label')?.querySelector('output') ?? target.closest('.parameter-row')?.querySelector('output');
-    if (output) output.textContent = output.textContent.replace(/^[\d.]+/, String(value));
+    // 同步同一行里的滑杆/数值框, 不重渲染整个面板
+    target.closest('label')?.querySelectorAll(`input[data-action-param="${target.dataset.actionParam}"]`).forEach((el) => {
+      if (el !== target) el.value = target.value;
+    });
     return;
   }
   if (!target.dataset?.param) return;
@@ -3464,57 +3428,17 @@ function applySceneBackdrop() {
 function applyCameraView() {
   if (!threeState.camera || !threeState.controls) return;
 
+  // 统一自由视角: 不锁方位/俯仰, 仅在加载或点击重置时回到默认机位
   const controls = threeState.controls;
+  controls.target.copy(threeState.modelTarget ?? new THREE.Vector3(0, 0.58, 0));
+  threeState.camera.position.set(2.72, 1.36, 3.78);
   controls.minAzimuthAngle = -Infinity;
   controls.maxAzimuthAngle = Infinity;
-  controls.minPolarAngle = 0.1;
+  controls.minPolarAngle = 0.15;
   controls.maxPolarAngle = Math.PI - 0.1;
-  controls.target.copy(threeState.modelTarget ?? new THREE.Vector3(0, 0.5, 0));
   controls.minDistance = 1.8;
   controls.maxDistance = 6.5;
-
-  const lockAroundCurrentView = (azimuthPadding = 0.18, polarPadding = 0.16) => {
-    controls.update();
-    const azimuth = controls.getAzimuthalAngle();
-    const polar = controls.getPolarAngle();
-    controls.minAzimuthAngle = azimuth - azimuthPadding;
-    controls.maxAzimuthAngle = azimuth + azimuthPadding;
-    controls.minPolarAngle = Math.max(0.1, polar - polarPadding);
-    controls.maxPolarAngle = Math.min(Math.PI - 0.1, polar + polarPadding);
-  };
-
-  if (appState.cameraView === 'left') {
-    threeState.camera.position.set(0.1, 1.14, -4.65);
-    lockAroundCurrentView();
-    return;
-  }
-
-  if (appState.cameraView === 'right') {
-    threeState.camera.position.set(0.1, 1.14, 4.65);
-    lockAroundCurrentView();
-    return;
-  }
-
-  if (appState.cameraView === 'top') {
-    controls.target.set(0, 0.38, 0);
-    threeState.camera.position.set(2.85, 3.28, 3.52);
-    lockAroundCurrentView(0.28, 0.18);
-    return;
-  }
-
-  if (appState.cameraView === 'free') {
-    threeState.camera.position.set(2.72, 1.36, 3.78);
-    controls.target.copy(threeState.modelTarget ?? new THREE.Vector3(0, 0.58, 0));
-    controls.minAzimuthAngle = -Infinity;
-    controls.maxAzimuthAngle = Infinity;
-    controls.minPolarAngle = 0.15;
-    controls.maxPolarAngle = Math.PI - 0.1;
-    controls.update();
-    return;
-  }
-
-  threeState.camera.position.set(4.68, 1.14, 0.1);
-  lockAroundCurrentView();
+  controls.update();
 }
 
 function rotateFromBase(partKey, rotations) {
@@ -3729,6 +3653,42 @@ function armSideWeights(side = 'Both') {
   };
 }
 
+function getHeadPose(time) {
+  // 头部上看/下看/左看/右看: 播放结束后保持姿态不回弹 (和手臂动作同一思路)
+  let pose = { y: 0, z: 0 };
+  const headClips = appState.timeline
+    .filter((clip) => !isClipMuted(clip) && ['headUp', 'headDown', 'headLeft', 'headRight'].includes(clip.action))
+    .sort((a, b) => a.start - b.start);
+
+  const targetForClip = (clip) => {
+    const rad = (safeAmountForModule(clip.module, clip.amount, clip.direction) * Math.PI) / 180;
+    if (clip.action === 'headUp') return { y: 0, z: rad };
+    if (clip.action === 'headDown') return { y: 0, z: -rad };
+    if (clip.action === 'headLeft') return { y: rad, z: 0 };
+    return { y: -rad, z: 0 };
+  };
+
+  for (const clip of headClips) {
+    const start = clip.start;
+    const end = start + clip.duration;
+    if (time < start) break;
+    const target = targetForClip(clip);
+    if (time >= end) {
+      pose = { ...target };
+      continue;
+    }
+    const progress = clamp((time - start) / clip.duration, 0, 1);
+    const eased = 0.5 - Math.cos(progress * Math.PI) / 2;
+    pose = {
+      y: pose.y + (target.y - pose.y) * eased,
+      z: pose.z + (target.z - pose.z) * eased,
+    };
+    break;
+  }
+
+  return pose;
+}
+
 function getArmLiftPose(time) {
   // 侧向抬手: 绕世界 x 轴把手臂向身体两侧抬起
   // (左手臂基座绕 y 旋转约180°, 局部 x 相同符号即产生镜像世界运动)
@@ -3872,6 +3832,10 @@ function applyTimelinePose(time) {
     return !isClipMuted(clip) && time >= clip.start && time <= clip.start + clip.duration;
   });
   const headPose = { x: 0, y: 0, z: 0 };
+  // 上看/下看/左看/右看: 播放结束后保持姿态 (点头仍是瞬时动作, 在 forEach 里处理)
+  const headPersist = getHeadPose(time);
+  headPose.y = headPersist.y;
+  headPose.z = headPersist.z;
   const armLift = getArmLiftPose(time);
   const armReach = getArmReachAngle(time);
   let leftHand = 0;
@@ -3895,14 +3859,10 @@ function applyTimelinePose(time) {
     const eased = 0.5 - Math.cos(progress * Math.PI) / 2;
     const amount = normalizedMotionAmount(clip);
     const surfaceDeformation = isSurfaceDeformationClip(clip);
-    // 头盔局部轴 = 世界轴, 脸朝 +x: 点头/上看下看绕 z 轴, 左右转绕 y 轴
+    // 头盔局部轴 = 世界轴, 脸朝 +x: 点头绕 z 轴 (瞬时动作, 叠加在持久头部姿态上)
     const amountDeg = safeAmountForModule(clip.module, clip.amount, clip.direction);
     const amountRad = (amountDeg * Math.PI) / 180;
-    if (clip.action === 'nodHead') headPose.z = -0.16 * amount * Math.sin(progress * Math.PI * 2);
-    if (clip.action === 'headUp') headPose.z = amountRad * eased;
-    if (clip.action === 'headDown') headPose.z = -amountRad * eased;
-    if (clip.action === 'headLeft') headPose.y = amountRad * eased;
-    if (clip.action === 'headRight') headPose.y = -amountRad * eased;
+    if (clip.action === 'nodHead') headPose.z += -0.16 * amount * Math.sin(progress * Math.PI * 2);
     if (clip.action === 'patHand') {
       // 掌心向内轻拍: 两手绕各自局部 z 轴同号旋转 = 向世界中线合拢拍打
       const pat = Math.max(0, Math.sin(progress * Math.PI)) * 0.34 * amount;
@@ -3911,18 +3871,18 @@ function applyTimelinePose(time) {
       if (weights.right) rightPat = Math.max(rightPat, pat);
     }
     if (clip.action === 'palmTilt') {
-      // 掌心/手背方向摆动 (手腕屈伸): 世界绕 z 轴; 右手 localX 同号, 左手 localX 镜像取反
-      const tilt = amountRad * eased * (clip.direction === 'Down' ? -1 : 1);
-      const weights = armSideWeights(clip.side);
-      if (weights.left) leftHand = -tilt;
-      if (weights.right) rightHand = tilt;
-    }
-    if (clip.action === 'handSideTilt') {
-      // 拇指侧↔小指侧摆动 (手腕侧偏): 世界绕 x 轴, 两手 localZ 同号
-      const tilt = amountRad * eased * (clip.direction === 'Down' ? -1 : 1);
+      // 掌心/手背方向摆动: 世界绕 x 轴, 两手 localZ 同号 (用户目检确认此轴向为掌心摆动)
+      const tilt = amountRad * eased * (clip.direction === 'Down' ? 1 : -1);
       const weights = armSideWeights(clip.side);
       if (weights.left) leftPat = tilt;
       if (weights.right) rightPat = tilt;
+    }
+    if (clip.action === 'handSideTilt') {
+      // 拇指侧↔小指侧摆动: 世界绕 z 轴; 右手 localX 同号, 左手 localX 镜像取反
+      const tilt = amountRad * eased * (clip.direction === 'Down' ? 1 : -1);
+      const weights = armSideWeights(clip.side);
+      if (weights.left) leftHand = -tilt;
+      if (weights.right) rightHand = tilt;
     }
     if (clip.action === 'vibrateHand') {
       const vibration = Math.sin(progress * Math.PI * 28) * 0.08;
