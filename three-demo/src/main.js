@@ -32,7 +32,8 @@ const behaviorModuleGroups = [
     group: 'Hand',
     icon: '✋',
     items: [
-      'Gentle pat',
+      'Palm Tilt',
+      'Hand Side Tilt',
       'Hand Inflate',
     ],
   },
@@ -137,6 +138,8 @@ const moduleLabels = {
   'Open arms': '张开双臂',
   'Close arms': '合拢双臂',
   'Gentle pat': '手掌轻拍',
+  'Palm Tilt': '掌心摆动',
+  'Hand Side Tilt': '侧面摆动',
   'Hand vibration': '手部轻震',
   'Warm hand': '手部升温',
   'Hand glow': '手部发光',
@@ -150,6 +153,8 @@ const optionLabels = {
   Both: '双侧',
   Forward: '向前',
   Backward: '向后',
+  Up: '向上',
+  Down: '向下',
   Slow: '慢',
   Medium: '中',
   Fast: '快',
@@ -207,6 +212,8 @@ const moduleActionIcons = {
   'Side Lift': '↗',
   'Arm Inflate': '◒',
   'Gentle pat': '↶',
+  'Palm Tilt': '⇅',
+  'Hand Side Tilt': '⇆',
   'Hold still': '•',
   'Hand Inflate': '◒',
   Breathing: '◒',
@@ -300,6 +307,8 @@ const moduleResponseMap = {
   'Retract hand': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Both', deformationType: 'none', category: 'Motion' },
   'Move hand back': { targetPart: 'botharms', targetLabel: 'Arm / Hand', side: 'Both', deformationType: 'none', category: 'Motion' },
   'Gentle pat': { targetPart: 'bothhands', targetLabel: 'Hand', side: 'Right', deformationType: 'none', deformationTarget: 'arm_hand', category: 'Hand motion' },
+  'Palm Tilt': { targetPart: 'bothhands', targetLabel: 'Hand', side: 'Right', direction: 'Up', deformationType: 'none', deformationTarget: 'arm_hand', category: 'Hand motion' },
+  'Hand Side Tilt': { targetPart: 'bothhands', targetLabel: 'Hand', side: 'Right', direction: 'Up', deformationType: 'none', deformationTarget: 'arm_hand', category: 'Hand motion' },
   'Hand vibration': { targetPart: 'bothhands', targetLabel: 'Hand', side: 'Both', deformationType: 'wave', category: 'Tactile rhythm' },
   'Warm hand': { targetPart: 'bothhands', targetLabel: 'Hand', side: 'Both', deformationType: 'surface', category: 'Thermal surface' },
   'Hand glow': { targetPart: 'bothhands', targetLabel: 'Hand', side: 'Both', deformationType: 'surface', category: 'Light response' },
@@ -763,11 +772,13 @@ function getPanelConfig() {
   if (!clip) {
     return {
       ...config,
+      module: appState.selectedModule,
       deformationTarget: lockedDeformationTarget(appState.selectedModule),
     };
   }
   return {
     ...config,
+    module: clip.module ?? appState.selectedModule,
     side: clip.side ?? config.side,
     direction: clip.direction ?? config.direction,
     amount: clip.amount ?? config.amount,
@@ -821,7 +832,7 @@ function setActionParameter(key, value, shouldSnapshot = true) {
   if (shouldSnapshot) snapshot();
   const target = getEditableActionTarget();
   const moduleName = target.module ?? appState.selectedModule;
-  target[key] = key === 'amount' ? safeParameterAmountForModule(moduleName, value) : value;
+  target[key] = key === 'amount' ? safeParameterAmountForModule(moduleName, value, target.direction) : value;
   target.deformationTarget = lockedDeformationTarget(moduleName);
 
   if (key === 'speed') {
@@ -851,6 +862,21 @@ function setActionParameter(key, value, shouldSnapshot = true) {
 
   renderRightPanel();
   renderTimeline();
+  applyTimelinePose(appState.currentTime);
+  applyPartHighlight();
+}
+
+// 滑杆拖动中的轻量更新: 只写数据 + 刷新 3D 姿态, 不重建面板 DOM (否则拖动会卡/中断)
+function setActionParameterLive(key, value) {
+  const target = getEditableActionTarget();
+  const moduleName = target.module ?? appState.selectedModule;
+  target[key] = key === 'amount' ? safeParameterAmountForModule(moduleName, value, target.direction) : value;
+  if (key === 'speed') {
+    target.duration = clamp(durationForSpeed(value), 0.5, target.start == null ? TOTAL_DURATION : TOTAL_DURATION - target.start);
+  }
+  if (key === 'duration') {
+    target.speed = speedForDuration(value);
+  }
   applyTimelinePose(appState.currentTime);
   applyPartHighlight();
 }
@@ -1207,22 +1233,22 @@ function motionModeField(config) {
 const MAG_LEVEL_OPTIONS = {
   point: {
     distance: [
-      { value: 'wide', label: '宽距' },
       { value: 'dense', label: '密距' },
+      { value: 'wide', label: '宽距' },
     ],
     radius: [
-      { value: 'big', label: '大半径' },
       { value: 'small', label: '小半径' },
+      { value: 'big', label: '大半径' },
     ],
   },
   line: {
     distance: [
-      { value: 'wide', label: '宽距' },
       { value: 'dense', label: '密距' },
+      { value: 'wide', label: '宽距' },
     ],
     radius: [
-      { value: 'big', label: '粗' },
       { value: 'small', label: '细' },
+      { value: 'big', label: '粗' },
     ],
   },
 };
@@ -1273,7 +1299,6 @@ function inflationParameterSection(config, { moduleName, showSideControl, target
           <strong>${targetLabel}</strong>
         </div>
       </div>
-      ${showSideControl ? segmentedField('侧别', 'side', actionSideOptions, config.side) : ''}
       ${choiceGrid('形变方式', patternChoices, config.deformationPattern, 'deformation-pattern')}
       ${hasPointLinePreview ? variableModeField(config) : ''}
       ${hasPointLinePreview ? magLevelField(config) : ''}
@@ -1285,18 +1310,20 @@ function inflationParameterSection(config, { moduleName, showSideControl, target
 
 function motionParameterTemplate(config, { moduleName }) {
   const showReachDirection = moduleName === 'Forward / Backward Reach';
-  const showMotionSide = ['Side Lift', 'Gentle pat'].includes(moduleName);
+  const showHandTiltDirection = ['Palm Tilt', 'Hand Side Tilt'].includes(moduleName);
+  const showMotionSide = ['Side Lift', 'Gentle pat', 'Forward / Backward Reach', 'Palm Tilt', 'Hand Side Tilt'].includes(moduleName);
   return `
       ${showReachDirection ? segmentedField('方向', 'direction', ['Forward', 'Backward'], config.direction ?? 'Forward') : ''}
+      ${showHandTiltDirection ? segmentedField('方向', 'direction', ['Up', 'Down'], config.direction ?? 'Up') : ''}
       ${showMotionSide ? segmentedField('侧别', 'side', actionSideOptions, config.side ?? 'Right') : ''}
-      ${amountField(config.amount, config.module ?? appState.selectedModule)}
+      ${amountField(config.amount, config.module ?? appState.selectedModule, config.direction)}
       ${segmentedField('速度', 'speed', responseSpeedOptions, config.speed)}
   `;
 }
 
 function anglePreviewTemplate(config, moduleName = appState.selectedModule) {
-  const limit = amountLimitForModule(moduleName);
-  const safeValue = safeAmountForModule(moduleName, config.amount);
+  const limit = amountLimitForModule(moduleName, config.direction);
+  const safeValue = safeAmountForModule(moduleName, config.amount, config.direction);
   return `
     <section class="angle-preview-card">
       <div class="angle-preview-head">
@@ -1309,7 +1336,7 @@ function anglePreviewTemplate(config, moduleName = appState.selectedModule) {
       <div class="angle-preview-stage" aria-hidden="true">
         ${anglePreviewSvg(moduleName, config, safeValue, limit.max)}
       </div>
-      ${amountField(config.amount, moduleName)}
+      ${amountField(config.amount, moduleName, config.direction)}
     </section>
   `;
 }
@@ -1317,6 +1344,8 @@ function anglePreviewTemplate(config, moduleName = appState.selectedModule) {
 function anglePreviewTitle(moduleName, config) {
   if (moduleName === 'Forward / Backward Reach') return `前后伸手 · ${displayOption(config.direction ?? 'Forward')}`;
   if (moduleName === 'Side Lift') return '侧向抬手';
+  if (moduleName === 'Palm Tilt') return `掌心摆动 · ${displayOption(config.direction ?? 'Up')}`;
+  if (moduleName === 'Hand Side Tilt') return `侧面摆动 · ${displayOption(config.direction ?? 'Up')}`;
   if (moduleName === 'Gentle pat') return '手掌轻拍';
   if (['Head up', 'Head down', 'Head left', 'Head right'].includes(moduleName)) return '头部方向';
   return displayModuleName(moduleName);
@@ -1325,7 +1354,7 @@ function anglePreviewTitle(moduleName, config) {
 function anglePreviewSvg(moduleName, config, amount, max) {
   if (moduleName === 'Forward / Backward Reach') return reachAnglePreviewSvg(config, amount, max);
   if (moduleName === 'Side Lift') return sideLiftAnglePreviewSvg(amount, max);
-  if (moduleName === 'Gentle pat') return patAnglePreviewSvg(amount, max);
+  if (['Gentle pat', 'Palm Tilt', 'Hand Side Tilt'].includes(moduleName)) return patAnglePreviewSvg(amount, max);
   if (['Head up', 'Head down', 'Head left', 'Head right'].includes(moduleName)) {
     return headAnglePreviewSvg(moduleName, amount, max);
   }
@@ -1555,36 +1584,44 @@ function segmentedField(label, key, options, value) {
   `;
 }
 
-function amountLimitForModule(moduleName = appState.selectedModule) {
+function amountLimitForModule(moduleName = appState.selectedModule, direction) {
   const label = displayModuleName(moduleName);
-  if (/head|nod|look/i.test(moduleName) || /上看|下看|左转|右转|头部/.test(label)) return { max: 28, unit: '°' };
-  if (moduleName === 'Forward / Backward Reach' || label.includes('前后伸手')) return { max: 55, unit: '°' };
-  if (moduleName === 'Side Lift' || label.includes('侧向抬手')) return { max: 65, unit: '°' };
+  if (moduleName === 'Head up' || label === '上看') return { max: 90, unit: '°' };
+  if (moduleName === 'Head down' || label === '下看') return { max: 45, unit: '°' };
+  if (moduleName === 'Head left' || moduleName === 'Head right' || label === '左转' || label === '右转') return { max: 90, unit: '°' };
+  if (/nod|look/i.test(moduleName)) return { max: 28, unit: '°' };
+  // 前后伸手: 向前最多 180°, 向后最多 90°
+  if (moduleName === 'Forward / Backward Reach' || label.includes('前后伸手')) {
+    return { max: direction === 'Backward' ? 90 : 180, unit: '°' };
+  }
+  if (moduleName === 'Side Lift' || label.includes('侧向抬手')) return { max: 150, unit: '°' };
+  if (moduleName === 'Palm Tilt' || label.includes('掌心摆动')) return { max: 60, unit: '°' };
+  if (moduleName === 'Hand Side Tilt' || label.includes('侧面摆动')) return { max: 50, unit: '°' };
   if (moduleName === 'Gentle pat' || label.includes('手掌轻拍')) return { max: 32, unit: '°' };
   if (moduleName === 'Hold still' || label.includes('停留')) return { max: 18, unit: '°' };
   return { max: 60, unit: '°' };
 }
 
-function safeAmountForModule(moduleName, value) {
-  const limit = amountLimitForModule(moduleName);
+function safeAmountForModule(moduleName, value, direction) {
+  const limit = amountLimitForModule(moduleName, direction);
   const fallback = Math.round(limit.max * 0.7);
   return clamp(Number(value) || fallback, 0, limit.max);
 }
 
-function safeParameterAmountForModule(moduleName, value) {
+function safeParameterAmountForModule(moduleName, value, direction) {
   if (isInflationModule(moduleName)) return clamp(Number(value) || 45, 0, 100);
-  return safeAmountForModule(moduleName, value);
+  return safeAmountForModule(moduleName, value, direction);
 }
 
 function normalizedMotionAmount(target) {
   const moduleName = target?.module ?? appState.selectedModule;
-  const limit = amountLimitForModule(moduleName);
-  return clamp(safeAmountForModule(moduleName, target?.amount) / limit.max, 0, 1);
+  const limit = amountLimitForModule(moduleName, target?.direction);
+  return clamp(safeAmountForModule(moduleName, target?.amount, target?.direction) / limit.max, 0, 1);
 }
 
-function amountField(value, moduleName = appState.selectedModule) {
-  const limit = amountLimitForModule(moduleName);
-  const safeValue = safeAmountForModule(moduleName, value);
+function amountField(value, moduleName = appState.selectedModule, direction) {
+  const limit = amountLimitForModule(moduleName, direction);
+  const safeValue = safeAmountForModule(moduleName, value, direction);
   return `
     <label class="parameter-row amount-row">
       <span>角度</span>
@@ -1687,12 +1724,12 @@ function bubbleAnchorForTarget(config) {
     return { objects: [threeState.parts.head].filter(Boolean), cls: 'anchor-head' };
   }
   if (config.deformationTarget === 'arm_hand') {
-    // 双臂+双手一起投影, 端点自动落在离气泡最近的那只手臂上
-    // (模型左右是 Z 轴, 解剖学右手臂在屏幕左侧, 不按侧别区分)
-    const objects = [
-      threeState.parts.leftarm, threeState.parts.lefthand,
-      threeState.parts.rightarm, threeState.parts.righthand,
-    ].filter(Boolean);
+    // 手部膨胀: 连线指到手掌节点; 手臂膨胀/手臂动作: 指到手臂
+    // (模型左右是 Z 轴, 不按侧别区分, 端点自动落在离气泡最近的一侧)
+    const isHandModule = /hand inflate|palm tilt|hand side tilt|gentle pat|hold still/i.test(config.module ?? '');
+    const objects = isHandModule
+      ? [threeState.parts.lefthand, threeState.parts.righthand].filter(Boolean)
+      : [threeState.parts.leftarm, threeState.parts.rightarm].filter(Boolean);
     return { objects, cls: 'anchor-arm' };
   }
   const objects = [threeState.deformationParts.chest, threeState.deformationParts.belly].filter(Boolean);
@@ -2717,7 +2754,10 @@ document.querySelector('#app').addEventListener('input', (event) => {
       return;
     }
     const value = target.type === 'number' || target.type === 'range' ? Number(target.value) : target.value;
-    setActionParameter(target.dataset.actionParam, value, false);
+    setActionParameterLive(target.dataset.actionParam, value);
+    // 只更新当前行的 output 文本, 不重渲染整个面板
+    const output = target.closest('label')?.querySelector('output') ?? target.closest('.parameter-row')?.querySelector('output');
+    if (output) output.textContent = output.textContent.replace(/^[\d.]+/, String(value));
     return;
   }
   if (!target.dataset?.param) return;
@@ -2799,7 +2839,7 @@ function findModuleStart(moduleName) {
 
 function inferTrack(moduleName) {
   if (/head|nod|look/i.test(moduleName)) return 'Head';
-  if (/gentle pat|hold still|hand inflate|hand vibration|warm hand|hand glow/i.test(moduleName)) return 'Hand';
+  if (/gentle pat|palm tilt|hand side tilt|hold still|hand inflate|hand vibration|warm hand|hand glow/i.test(moduleName)) return 'Hand';
   if (/hand forward|hand back|hand up|hand down|arm|reach|side lift|retract|open arms|close arms|raise hand|lower hand|move hand back/i.test(moduleName)) return 'Arm';
   if (/^breathing$/i.test(moduleName)) return 'Chest + Belly';
   if (/breathing light|heartbeat|color|glow/i.test(moduleName)) return 'Chest';
@@ -2836,6 +2876,8 @@ function inferAction(moduleName) {
   if (/retract hand/i.test(moduleName)) return 'retractHand';
   if (/move hand back/i.test(moduleName)) return 'moveHandBack';
   if (/gentle pat/i.test(moduleName)) return 'patHand';
+  if (/palm tilt/i.test(moduleName)) return 'palmTilt';
+  if (/hand side tilt/i.test(moduleName)) return 'handSideTilt';
   if (/hand vibration/i.test(moduleName)) return 'vibrateHand';
   if (/warm hand/i.test(moduleName)) return 'warmHand';
   if (/hand glow/i.test(moduleName)) return 'glowHand';
@@ -3272,7 +3314,10 @@ function setupRobotViewport() {
     const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
     threeState.controls.target.copy(scaledCenter);
     threeState.controls.target.y += 0.08;
+    // 记录模型中心, 相机预设视角统一对准这里, 保证机器人在视口居中
+    threeState.modelTarget = threeState.controls.target.clone();
     threeState.controls.update();
+    applyCameraView();
   }
 
   const dracoLoader = new DRACOLoader();
@@ -3413,19 +3458,7 @@ function applySceneBackdrop() {
 
   document.querySelector('.grid-floor')?.classList.toggle('hidden', !appState.showGrid || !isStudio);
 
-  if (!threeState.camera || !threeState.controls) return;
-  if (isStudio) {
-    applyCameraView();
-    return;
-  }
-
-  threeState.camera.position.set(2.72, 1.36, 3.78);
-  threeState.controls.target.set(0, 0.58, 0);
-  threeState.controls.minAzimuthAngle = -0.72;
-  threeState.controls.maxAzimuthAngle = 0.72;
-  threeState.controls.minPolarAngle = 0.88;
-  threeState.controls.maxPolarAngle = 1.34;
-  threeState.controls.update();
+  // 场景切换不再重置相机: 保持用户当前的自由视角
 }
 
 function applyCameraView() {
@@ -3436,7 +3469,7 @@ function applyCameraView() {
   controls.maxAzimuthAngle = Infinity;
   controls.minPolarAngle = 0.1;
   controls.maxPolarAngle = Math.PI - 0.1;
-  controls.target.set(0, 0.5, 0);
+  controls.target.copy(threeState.modelTarget ?? new THREE.Vector3(0, 0.5, 0));
   controls.minDistance = 1.8;
   controls.maxDistance = 6.5;
 
@@ -3471,7 +3504,7 @@ function applyCameraView() {
 
   if (appState.cameraView === 'free') {
     threeState.camera.position.set(2.72, 1.36, 3.78);
-    controls.target.set(0, 0.58, 0);
+    controls.target.copy(threeState.modelTarget ?? new THREE.Vector3(0, 0.58, 0));
     controls.minAzimuthAngle = -Infinity;
     controls.maxAzimuthAngle = Infinity;
     controls.minPolarAngle = 0.15;
@@ -3699,7 +3732,6 @@ function armSideWeights(side = 'Both') {
 function getArmLiftPose(time) {
   // 侧向抬手: 绕世界 x 轴把手臂向身体两侧抬起
   // (左手臂基座绕 y 旋转约180°, 局部 x 相同符号即产生镜像世界运动)
-  const sideLiftBase = { leftX: -0.62, rightX: -0.62 };
   let pose = { leftX: 0, rightX: 0 };
   const armClips = appState.timeline
     .filter((clip) => !isClipMuted(clip) && ['raiseArm', 'lowerArm'].includes(clip.action))
@@ -3707,11 +3739,12 @@ function getArmLiftPose(time) {
 
   const targetForClip = (clip) => {
     if (clip.action !== 'raiseArm') return { leftX: 0, rightX: 0 };
-    const amount = normalizedMotionAmount(clip);
+    // 侧向抬手改为真实角度 (上限 150°), 绕世界 x 轴
+    const rad = (safeAmountForModule(clip.module, clip.amount) * Math.PI) / 180;
     const weights = armSideWeights(clip.side);
     return {
-      leftX: weights.left ? sideLiftBase.leftX * amount : 0,
-      rightX: weights.right ? sideLiftBase.rightX * amount : 0,
+      leftX: weights.left ? -rad : 0,
+      rightX: weights.right ? -rad : 0,
     };
   };
 
@@ -3753,9 +3786,20 @@ function getArmReachAngle(time) {
     .sort((a, b) => a.start - b.start);
 
   const applyClipParameters = (target, clip) => {
+    const weights = armSideWeights(clip.side);
+    // 前后伸手改为真实角度 (向前上限 180°, 向后上限 90°), 绕世界 z 轴
+    if (['reachForward', 'handForward'].includes(clip.action)) {
+      const rad = (safeAmountForModule(clip.module, clip.amount, clip.direction) * Math.PI) / 180
+        * (clip.direction === 'Backward' ? -1 : 1);
+      return {
+        leftX: 0,
+        rightX: 0,
+        leftZ: weights.left ? -rad : 0,
+        rightZ: weights.right ? rad : 0,
+      };
+    }
     const amount = normalizedMotionAmount(clip);
     const directionMultiplier = clip.direction === 'Backward' ? -1 : 1;
-    const weights = armSideWeights(clip.side);
     return {
       leftX: weights.left ? target.leftX * amount * directionMultiplier : 0,
       rightX: weights.right ? target.rightX * amount * directionMultiplier : 0,
@@ -3852,17 +3896,33 @@ function applyTimelinePose(time) {
     const amount = normalizedMotionAmount(clip);
     const surfaceDeformation = isSurfaceDeformationClip(clip);
     // 头盔局部轴 = 世界轴, 脸朝 +x: 点头/上看下看绕 z 轴, 左右转绕 y 轴
+    const amountDeg = safeAmountForModule(clip.module, clip.amount, clip.direction);
+    const amountRad = (amountDeg * Math.PI) / 180;
     if (clip.action === 'nodHead') headPose.z = -0.16 * amount * Math.sin(progress * Math.PI * 2);
-    if (clip.action === 'headUp') headPose.z = 0.24 * amount * eased;
-    if (clip.action === 'headDown') headPose.z = -0.24 * amount * eased;
-    if (clip.action === 'headLeft') headPose.y = 0.34 * amount * eased;
-    if (clip.action === 'headRight') headPose.y = -0.34 * amount * eased;
+    if (clip.action === 'headUp') headPose.z = amountRad * eased;
+    if (clip.action === 'headDown') headPose.z = -amountRad * eased;
+    if (clip.action === 'headLeft') headPose.y = amountRad * eased;
+    if (clip.action === 'headRight') headPose.y = -amountRad * eased;
     if (clip.action === 'patHand') {
       // 掌心向内轻拍: 两手绕各自局部 z 轴同号旋转 = 向世界中线合拢拍打
       const pat = Math.max(0, Math.sin(progress * Math.PI)) * 0.34 * amount;
       const weights = armSideWeights(clip.side);
       if (weights.left) leftPat = Math.max(leftPat, pat);
       if (weights.right) rightPat = Math.max(rightPat, pat);
+    }
+    if (clip.action === 'palmTilt') {
+      // 掌心/手背方向摆动 (手腕屈伸): 世界绕 z 轴; 右手 localX 同号, 左手 localX 镜像取反
+      const tilt = amountRad * eased * (clip.direction === 'Down' ? -1 : 1);
+      const weights = armSideWeights(clip.side);
+      if (weights.left) leftHand = -tilt;
+      if (weights.right) rightHand = tilt;
+    }
+    if (clip.action === 'handSideTilt') {
+      // 拇指侧↔小指侧摆动 (手腕侧偏): 世界绕 x 轴, 两手 localZ 同号
+      const tilt = amountRad * eased * (clip.direction === 'Down' ? -1 : 1);
+      const weights = armSideWeights(clip.side);
+      if (weights.left) leftPat = tilt;
+      if (weights.right) rightPat = tilt;
     }
     if (clip.action === 'vibrateHand') {
       const vibration = Math.sin(progress * Math.PI * 28) * 0.08;
@@ -3885,14 +3945,13 @@ function applyTimelinePose(time) {
       inflation.head = Math.max(inflation.head, breathingPulse(progress) * 0.9);
     }
     if (clip.action === 'armInflate' && surfaceDeformation) {
+      // 膨胀侧别已固定为右侧 (面板不再提供左右选择)
       const armValue = breathingPulse(progress);
-      if (clip.side === 'Left' || clip.side === 'Both') inflation.leftArm = Math.max(inflation.leftArm, armValue);
-      if (clip.side === 'Right' || clip.side === 'Both' || !clip.side) inflation.rightArm = Math.max(inflation.rightArm, armValue);
+      inflation.rightArm = Math.max(inflation.rightArm, armValue);
     }
     if (clip.action === 'handInflate' && surfaceDeformation) {
       const handValue = breathingPulse(progress);
-      if (clip.side === 'Left' || clip.side === 'Both') inflation.leftHand = Math.max(inflation.leftHand, handValue);
-      if (clip.side === 'Right' || clip.side === 'Both' || !clip.side) inflation.rightHand = Math.max(inflation.rightHand, handValue);
+      inflation.rightHand = Math.max(inflation.rightHand, handValue);
     }
     if (clip.action === 'chestBreathing' && surfaceDeformation) {
       inflation.chest = Math.max(inflation.chest, 0.34 + breathingPulse(progress) * 0.66);
