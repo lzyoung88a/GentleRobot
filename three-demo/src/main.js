@@ -95,7 +95,6 @@ const sceneBackdrops = {
   bedside: { label: '床边', image: '/scenes/bedside.png' },
   dining: { label: '厨房', image: '/scenes/dining.png' },
   entry: { label: '玄关', image: '/scenes/entry.png' },
-  window: { label: '窗边', image: '/scenes/window.png' },
 };
 
 const materialLabels = {
@@ -857,7 +856,7 @@ function setActionParameter(key, value, shouldSnapshot = true) {
   }
 
   if (key === 'angle') {
-    target.angle = Number(value);
+    target.angle = clamp(Number(value) || 0, 0, ANGLE_SLIDER_MAX);
   }
 
   if (target.id) {
@@ -877,6 +876,10 @@ function setActionParameterLive(key, value) {
   target[key] = key === 'amount' ? safeParameterAmountForModule(moduleName, value, target.direction) : value;
   // 数值框手动输入超限: 自动钳制到设定的最大/最小
   if (key === 'intensity') target[key] = clamp(Number(value) || 0, 0, 100);
+  if (key === 'angle') {
+    target[key] = clamp(Number(value) || 0, 0, ANGLE_SLIDER_MAX);
+    refreshDeformationBubble();
+  }
   if (key === 'speed') {
     target.duration = clamp(durationForSpeed(value), 0.5, target.start == null ? TOTAL_DURATION : TOTAL_DURATION - target.start);
   }
@@ -1090,10 +1093,13 @@ function renderTopbar() {
                 <span>${escapeHtml(preset.name)}</span>
                 <small>${preset.clips.length} 个动作</small>
               </button>
+              <button class="preset-export" data-preset-export="${preset.id}" title="导出 JSON">⬇</button>
               <button class="preset-delete" data-preset-delete="${preset.id}" title="删除方案">×</button>
             </div>
           `).join('');
         })()}
+        <button class="preset-import-button" id="presetImportStart">⬆ 导入方案文件</button>
+        <input type="file" id="presetImportInput" accept="application/json,.json" hidden />
       </div>
     </div>
   `;
@@ -1297,10 +1303,18 @@ function magLevelField(config) {
     sanitizeMagLevel(mode, config.magLevel));
 }
 
-const ANGLE_OPTIONS = [0, 45, 90, 135].map((v) => ({ value: v, label: `${v}°` }));
+// 形变旋转角度: 连续可调 (0–180°), 视频固定播 0° 母版 + CSS 旋转
+const ANGLE_SLIDER_MAX = 180;
 
 function angleField(config) {
-  return labeledSegmentedField('角度', 'angle', ANGLE_OPTIONS, Number(config.angle ?? 0));
+  const safeValue = clamp(Number(config.angle ?? 0) || 0, 0, ANGLE_SLIDER_MAX);
+  return `
+    <label class="parameter-row amount-row">
+      <span>角度</span>
+      <input data-action-param="angle" type="range" min="0" max="${ANGLE_SLIDER_MAX}" step="1" value="${safeValue}" />
+      <input data-action-param="angle" class="amount-input" type="number" min="0" max="${ANGLE_SLIDER_MAX}" step="1" value="${safeValue}" />
+    </label>
+  `;
 }
 
 function inflationParameterSection(config, { moduleName, showSideControl, targetLabel }) {
@@ -1730,8 +1744,8 @@ function deformationVideoFor(config) {
   const motionMode = config.motionMode ?? 'sync';
   // 点/线均有两档(宽距/密距、大半径/小半径 或 粗/细)
   const magLevel = sanitizeMagLevel(variableMode, config.magLevel);
-  // 点/线均支持旋转角度(0/45/90/135)
-  const angleSuffix = `-${Number(config.angle ?? 0)}`;
+  // 旋转角度连续可调: 视频固定用 0° 母版, 角度由气泡上的 CSS 旋转实现
+  const angleSuffix = '-0';
   return `/videos/deformation/${target}-${pattern}-${variableMode}-${magLevel}-${motionMode}${angleSuffix}.mp4`;
 }
 
@@ -1820,6 +1834,11 @@ function openDeformLightbox() {
   }
   deformLightboxZoom = 1;
   applyDeformLightboxZoom();
+  // 同步气泡的连续旋转角度; 全屏是方形画面, 除以 rot-zoom 保持整个画面可见
+  const bubble = document.querySelector('#deformBubble');
+  const rotZoom = Number(bubble?.style.getPropertyValue('--rot-zoom')) || 1;
+  lightbox.style.setProperty('--lb-rot', bubble?.style.getPropertyValue('--deform-rot') || '0deg');
+  lightbox.style.setProperty('--lb-rot-fit', (1 / rotZoom).toFixed(3));
   lightbox.hidden = false;
   video?.play().catch(() => {});
 }
@@ -1867,6 +1886,14 @@ function refreshDeformationBubble() {
   const caption = bubble.querySelector('#deformBubbleCaption');
   const angleLabel = `${Number(config.angle ?? 0)}°`;
   if (caption) caption.textContent = [patternLabel, variableLabel, levelLabel, motionLabel, angleLabel].filter(Boolean).join(' · ');
+  // 连续旋转角度: 圆形气泡内对 0° 母版视频做 CSS 旋转
+  // rot-zoom 补偿方形视频旋转后的圆角缺角 (0°→1, 45°→√2)
+  const angleDeg = clamp(Number(config.angle ?? 0) || 0, 0, ANGLE_SLIDER_MAX);
+  const rot90 = ((angleDeg % 90) + 90) % 90;
+  const effRot = Math.min(rot90, 90 - rot90);
+  const coverZoom = Math.cos((effRot * Math.PI) / 180) + Math.sin((effRot * Math.PI) / 180);
+  bubble.style.setProperty('--deform-rot', `${angleDeg}deg`);
+  bubble.style.setProperty('--rot-zoom', coverZoom.toFixed(3));
   const anchor = bubbleAnchorForTarget(config);
   bubble.classList.remove('anchor-head', 'anchor-arm', 'anchor-chest');
   bubble.classList.add(anchor.cls);
@@ -2636,6 +2663,17 @@ document.querySelector('#app').addEventListener('click', (event) => {
     return;
   }
 
+  if (target.dataset.presetExport) {
+    const exportedName = exportPreset(target.dataset.presetExport);
+    if (exportedName) setToast(`已导出「${exportedName}」`);
+    return;
+  }
+
+  if (target.id === 'presetImportStart') {
+    document.querySelector('#presetImportInput')?.click();
+    return;
+  }
+
   if (target.id === 'undoButton') {
     if (!history.length) return;
     future.push(JSON.stringify(exportConfigForStorage()));
@@ -2775,6 +2813,18 @@ document.querySelector('#app').addEventListener('input', (event) => {
 
 document.querySelector('#app').addEventListener('change', (event) => {
   const target = event.target;
+  if (target.id === 'presetImportInput') {
+    const file = target.files?.[0];
+    target.value = '';
+    if (!file) return;
+    importPresetFromFile(file)
+      .then((name) => {
+        renderTopbar();
+        setToast(`已导入「${name}」`);
+      })
+      .catch(() => setToast('导入失败: 不是有效的方案文件'));
+    return;
+  }
   if (target.id === 'moduleEnabled') {
     const clip = getSelectedClip();
     if (!clip) {
@@ -2889,6 +2939,45 @@ function recallPreset(presetId) {
 
 function deletePreset(presetId) {
   persistPresets(loadPresets().filter((item) => item.id !== presetId));
+}
+
+// 导出单个方案为 .json 文件 (浏览器直接下载)
+function exportPreset(presetId) {
+  const preset = loadPresets().find((item) => item.id === presetId);
+  if (!preset) return null;
+  const payload = {
+    kind: 'gentle-robot-timeline-preset',
+    name: preset.name,
+    createdAt: preset.createdAt,
+    clips: preset.clips,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${preset.name}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+  return preset.name;
+}
+
+// 从 .json 文件导入方案 (名称撞了自动加 "(导入)" 后缀)
+async function importPresetFromFile(file) {
+  const text = await file.text();
+  const parsed = JSON.parse(text);
+  const clips = Array.isArray(parsed) ? parsed : parsed?.clips;
+  if (!Array.isArray(clips) || !clips.length) throw new Error('invalid preset file');
+  const presets = loadPresets();
+  let name = (Array.isArray(parsed) ? '' : parsed?.name ?? '').trim() || file.name.replace(/\.json$/i, '');
+  if (presets.some((item) => item.name === name)) name = `${name} (导入)`;
+  presets.unshift({
+    id: `preset-${Date.now()}-${Math.round(Math.random() * 100000)}`,
+    name,
+    createdAt: (Array.isArray(parsed) ? null : parsed?.createdAt) ?? new Date().toISOString(),
+    clips,
+  });
+  persistPresets(presets);
+  return name;
 }
 
 function findModuleStart(moduleName) {

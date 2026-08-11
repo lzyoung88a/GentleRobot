@@ -2694,6 +2694,39 @@ button:disabled {
   background: rgba(221, 51, 51, 0.08);
 }
 
+.preset-export {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: #8a94a8;
+  font-size: 13px;
+}
+
+.preset-export:hover {
+  color: var(--blue);
+  background: rgba(22, 119, 255, 0.08);
+}
+
+.preset-import-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 8px 8px;
+  color: #536074;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.preset-import-button:hover {
+  color: var(--blue);
+  background: rgba(22, 119, 255, 0.06);
+}
+
 .preset-empty {
   padding: 14px 10px;
   color: #8a94a8;
@@ -3040,8 +3073,8 @@ button:disabled {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  /* 基础档(按类型) × 用户缩放(气泡下方 −/＋ 按钮) */
-  transform: scale(calc(var(--base-zoom, 2) * var(--user-zoom, 1)));
+  /* 基础档(按类型) × 用户缩放(气泡下方 −/＋ 按钮) × 旋转补角 × 连续角度旋转 */
+  transform: scale(calc(var(--base-zoom, 2) * var(--user-zoom, 1) * var(--rot-zoom, 1))) rotate(var(--deform-rot, 0deg));
   transition: transform 200ms ease;
 }
 
@@ -3107,7 +3140,7 @@ button:disabled {
   border-radius: 24px;
   background: #0f1622;
   box-shadow: 0 30px 90px rgba(0, 0, 0, 0.45);
-  transform: scale(var(--lb-zoom, 1));
+  transform: scale(calc(var(--lb-zoom, 1) * var(--lb-rot-fit, 1))) rotate(var(--lb-rot, 0deg));
   transition: transform 200ms ease;
 }
 
