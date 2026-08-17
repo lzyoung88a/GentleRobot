@@ -2189,7 +2189,7 @@ function renderTimeline() {
         <div class="playback">
           <button class="play ${appState.playing ? 'active' : ''}" id="playButton">${appState.playing ? '❚❚' : '▶'}</button>
           <button id="stopButton">■</button>
-          <span class="timecode"><b>${formatTime(appState.currentTime)}</b><em>/</em>${formatTime(TOTAL_DURATION)}</span>
+          <span class="timecode"><b>${formatTime(appState.currentTime)}</b></span>
         </div>
       </div>
       ${compact ? compactTimelineTemplate() : `
@@ -3435,7 +3435,8 @@ function setupRobotViewport() {
   rimLight.position.set(-3.8, 2.4, 3.2);
   threeState.scene.add(rimLight);
 
-  threeState.axesHelper = new THREE.AxesHelper(0.7);
+  // 坐标轴缩短到 0.32: 不再穿过机器人身体
+  threeState.axesHelper = new THREE.AxesHelper(0.32);
   threeState.axesHelper.visible = appState.showAxes;
   threeState.scene.add(threeState.axesHelper);
 
